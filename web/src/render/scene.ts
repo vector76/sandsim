@@ -6,6 +6,7 @@ export interface SceneHandle {
   removeLine(line: THREE.Line): void;
   addObject(obj: THREE.Object3D): void;
   removeObject(obj: THREE.Object3D): void;
+  renderer: THREE.WebGLRenderer;
   dispose(): void;
 }
 
@@ -70,6 +71,7 @@ export function initScene(canvas: HTMLCanvasElement, tableW: number, tableH: num
     removeObject(obj: THREE.Object3D): void {
       scene.remove(obj);
     },
+    renderer,
     dispose(): void {
       window.removeEventListener('resize', onResize);
     },

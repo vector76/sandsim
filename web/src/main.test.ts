@@ -7,21 +7,28 @@ const {
   mockInitScene,
   mockCreateSandMesh,
   mockUpdateSandMesh,
+  mockCheckFloatTextureSupport,
   mockCreateBallMesh,
   mockUpdateBallMesh,
   mockSetupFileDrop,
   mockRenderWarnings,
 } = vi.hoisted(() => {
   const mockAddObject = vi.fn();
+  const mockRenderer = {
+    capabilities: { isWebGL2: true },
+    getContext: () => ({ getExtension: () => ({}) }),
+  };
   const mockInitScene = vi.fn(() => ({
     addLine: vi.fn(),
     removeLine: vi.fn(),
     addObject: mockAddObject,
     removeObject: vi.fn(),
+    renderer: mockRenderer,
     dispose: vi.fn(),
   }));
-  const mockCreateSandMesh = vi.fn(() => ({ __kind: 'sand' }));
+  const mockCreateSandMesh = vi.fn(() => ({ __kind: 'sand', mesh: { __kind: 'sandMesh' } }));
   const mockUpdateSandMesh = vi.fn();
+  const mockCheckFloatTextureSupport = vi.fn(() => true);
   const mockCreateBallMesh = vi.fn(() => ({ __kind: 'ball' }));
   const mockUpdateBallMesh = vi.fn();
   const mockSetupFileDrop = vi.fn();
@@ -31,6 +38,7 @@ const {
     mockInitScene,
     mockCreateSandMesh,
     mockUpdateSandMesh,
+    mockCheckFloatTextureSupport,
     mockCreateBallMesh,
     mockUpdateBallMesh,
     mockSetupFileDrop,
@@ -42,6 +50,7 @@ vi.mock('./render/scene.js', () => ({ initScene: mockInitScene }));
 vi.mock('./render/sand-mesh.js', () => ({
   createSandMesh: mockCreateSandMesh,
   updateSandMesh: mockUpdateSandMesh,
+  checkFloatTextureSupport: mockCheckFloatTextureSupport,
 }));
 vi.mock('./render/ball.js', () => ({
   createBallMesh: mockCreateBallMesh,
@@ -110,6 +119,15 @@ describe('main bootstrap', () => {
     );
     expect(mockCreateBallMesh).toHaveBeenCalledWith(DEFAULT_SIM_CONFIG.ball_radius_mm);
     expect(mockAddObject).toHaveBeenCalledTimes(2);
+    expect(mockAddObject).toHaveBeenCalledWith({ __kind: 'sandMesh' });
+    expect(mockAddObject).toHaveBeenCalledWith({ __kind: 'ball' });
+  });
+
+  it('runs the float-texture capability check against the scene renderer', async () => {
+    await import('./main.js');
+    expect(mockCheckFloatTextureSupport).toHaveBeenCalledTimes(1);
+    const sceneInstance = mockInitScene.mock.results[0].value as { renderer: unknown };
+    expect(mockCheckFloatTextureSupport).toHaveBeenCalledWith(sceneInstance.renderer);
   });
 
   it('renders empty warnings on startup', async () => {
@@ -217,10 +235,10 @@ describe('main bootstrap', () => {
 
     expect(mockUpdateSandMesh).toHaveBeenCalledTimes(1);
     const updateCall = mockUpdateSandMesh.mock.calls[0];
-    expect(updateCall[0]).toEqual({ __kind: 'sand' });
+    expect(updateCall[0]).toEqual({ __kind: 'sand', mesh: { __kind: 'sandMesh' } });
     expect(updateCall[1]).toBeInstanceOf(Float32Array);
     expect((updateCall[1] as Float32Array).buffer).toBe(buf);
-    expect(updateCall[2]).toBe(expectedNx);
+    expect(updateCall.length).toBe(2);
 
     expect(mockUpdateBallMesh).toHaveBeenCalledWith(
       { __kind: 'ball' },

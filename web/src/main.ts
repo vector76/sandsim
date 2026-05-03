@@ -2,7 +2,7 @@ import { initScene } from './render/scene.js';
 import { setupFileDrop } from './ui/file-drop.js';
 import { renderWarnings } from './ui/warnings.js';
 import type { Warning } from './types.js';
-import { createSandMesh, updateSandMesh } from './render/sand-mesh.js';
+import { createSandMesh, updateSandMesh, checkFloatTextureSupport } from './render/sand-mesh.js';
 import { createBallMesh, updateBallMesh } from './render/ball.js';
 import { DEFAULT_SIM_CONFIG } from './types.js';
 import type { WorkerMessage, MainMessage } from './sim-protocol.js';
@@ -44,8 +44,9 @@ const nx = Math.ceil(cfg.table_width_mm / cfg.cell_mm);
 const ny = Math.ceil(cfg.table_height_mm / cfg.cell_mm);
 
 const sceneHandle = initScene(canvas, cfg.table_width_mm, cfg.table_height_mm);
-const sandMesh = createSandMesh(nx, ny, cfg.table_width_mm, cfg.table_height_mm);
-sceneHandle.addObject(sandMesh);
+checkFloatTextureSupport(sceneHandle.renderer);
+const sandHandle = createSandMesh(nx, ny, cfg.table_width_mm, cfg.table_height_mm);
+sceneHandle.addObject(sandHandle.mesh);
 const ballMesh = createBallMesh(cfg.ball_radius_mm);
 sceneHandle.addObject(ballMesh);
 
@@ -87,7 +88,7 @@ worker.onmessage = (evt: MessageEvent<WorkerMessage>) => {
         dbg(`frame #${frameCount} ball=(${msg.ballPos.x.toFixed(1)},${msg.ballPos.y.toFixed(1)}) t=${msg.simTime.toFixed(2)}`);
       }
       const view = new Float32Array(msg.buf);
-      updateSandMesh(sandMesh, view, nx);
+      updateSandMesh(sandHandle, view);
       updateBallMesh(ballMesh, msg.ballPos.x, msg.ballPos.y, cfg.ball_radius_mm);
       worker.postMessage({ type: 'release', buf: msg.buf } as MainMessage, [msg.buf]);
       break;
