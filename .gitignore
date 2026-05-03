@@ -3,3 +3,5 @@
 **/dist
 *.swp
 .DS_Store
+.env
+.raymond

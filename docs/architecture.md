@@ -171,22 +171,10 @@ The Rust core is the bulk of the logic and the bulk of the test coverage. Per th
 
 ## v1 build sequence
 
-A suggested implementation order, each step independently testable:
+Implementation is organized into three phases, each producing a visible milestone. Each phase has its own document specifying scope, deliverables, and acceptance criteria.
 
-1. Cargo workspace skeleton; `sandsim-core` with empty modules.
-2. GCode parser + warnings + fixtures. `cargo test` green.
-3. Heightmap data structure + carve. Tests for footprint, volume.
-4. Volume deposition (radial). Tests for conservation.
-5. Repose kernel. Tests for slope bound, conservation, termination.
-6. Sim driver: walks a `Vec<MoveEvent>`, sub-steps, advances by simulated time. Tests with a stationary ball, a single straight move, two crossing moves.
-7. Spiral / rose generators. Used as fixture inputs to (3)–(6).
-8. `sandsim-wasm` wrapper exposing: `init(config)`, `load(gcode, mode)`, `step(dt) -> snapshot`, `release(buf)`.
-9. Vite app skeleton: three.js scene, orbit camera, flat sand mesh, file drop.
-10. Worker integration: load wasm, double-buffered protocol, paced loop.
-11. Sand-displacement shader; ball mesh tracking the worker's reported position.
-12. Lighting controls and noise texture.
-13. Warning panel UI.
-14. Reset / append-on-load UI.
-15. Polish: parameter inputs, default fixtures bundled for one-click demos.
+- **Phase A — toolpath viewer** (`phase-a-toolpath-viewer.md`). First visual moment. Vite + three.js + minimal wasm-bindgen wrapper exposing the parser. Drop a gcode file, see the toolpath as a 3D polyline above a flat table. Validates the web build pipeline and GitHub Pages compatibility before deeper work depends on it.
+- **Phase B — minimum viable simulation** (`phase-b-minimum-viable-sim.md`). First "it's alive" moment. Heightmap, naive (non-volume-conserving) carve, sim driver, web worker, double-buffered transferable buffers, CPU-side mesh updates. Drop a gcode file, watch the ball trace it in real time and carve grooves into the sand. Piles and cross-pattern interaction are deliberately deferred — phase B exists to wire the pipeline end-to-end so phase C can swap in real kernels behind a stable API.
+- **Phase C — hardening** (`phase-c-hardening.md`). All v1 success criteria from `application-purpose.md`. Replaces phase B's placeholder kernels with the full segmented carve & repose from `sand-model.md`, switches sand rendering to a vertex-displacement shader, adds the world-space noise texture and user-controllable lighting, ships the warnings panel, the reset/append mode UI, the simulation parameter inputs, and the spiral/rose generators.
 
-Steps 1–8 do not require any browser. Steps 9+ are where visual inspection takes over.
+Already complete (committed before phase A): Cargo workspace skeleton and the gcode parser with full test coverage (`crates/sandsim-core/src/parser.rs`, `crates/sandsim-core/tests/parser_tests.rs`).
