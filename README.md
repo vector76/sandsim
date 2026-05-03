@@ -1,0 +1,29 @@
+# sandsim
+
+A web-based 3D simulator for **sand tables** — flat tables covered with a thin layer of sand, where a ball driven by a magnet beneath the table is dragged across the surface, leaving patterns in the sand.
+
+Upload a gcode toolpath, watch the ball trace it in real time on a 3D rendering of the sand surface, and see the patterns it leaves behind. Volume-conserving sand displacement means later passes interact with piles left by earlier passes — the subtle hints of prior patterns that real sand tables produce.
+
+## Status
+
+Early design. No code yet. Design documents are under `docs/`.
+
+## Goals
+
+- 100% static web page; hostable on GitHub Pages.
+- Real-time simulation of a configurable rectangular table at high spatial resolution.
+- Orbit camera with user-controlled lighting, plus a world-space noise texture for depth perception under rotation.
+
+## Tech stack
+
+- **three.js** (WebGL2) for rendering.
+- **Rust** compiled to WebAssembly for the simulation core.
+- **Vite** for the static-site bundle.
+- Simulation runs in a Web Worker; heightmap snapshots cross thread boundaries via double-buffered transferable `ArrayBuffer`s.
+
+## Documentation
+
+- [`docs/application-purpose.md`](docs/application-purpose.md) — what the app is, v1 scope, what's deferred.
+- [`docs/sand-model.md`](docs/sand-model.md) — heightmap, ball geometry, segmented displacement kernel, repose relaxation.
+- [`docs/gcode-subset.md`](docs/gcode-subset.md) — supported commands, coordinate frames, wall clamping, parser output.
+- [`docs/architecture.md`](docs/architecture.md) — repo layout, worker model, sim pacing, testing strategy, build sequence.
