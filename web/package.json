@@ -1,0 +1,22 @@
+{
+  "name": "sandsim-web",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "build:wasm": "wasm-pack build --target web --out-dir ../../web/pkg ../crates/sandsim-wasm",
+    "dev": "vite",
+    "build": "vite build",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "three": "^0.165.0"
+  },
+  "devDependencies": {
+    "vite": "^5.0.0",
+    "vite-plugin-wasm": "^3.3.0",
+    "vite-plugin-top-level-await": "^1.4.0",
+    "typescript": "^5.0.0",
+    "@types/three": "^0.165.0",
+    "vitest": "^1.0.0"
+  }
+}

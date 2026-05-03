@@ -6,7 +6,26 @@ Upload a gcode toolpath, watch the ball trace it in real time on a 3D rendering 
 
 ## Status
 
-Early design. No code yet. Design documents are under `docs/`.
+Early implementation. Rust/WASM gcode parser is complete. Web frontend scaffolding in place.
+
+## Building
+
+The build has two steps, both run from the `web/` directory:
+
+```sh
+# 1. Compile Rust → WebAssembly (requires wasm-pack)
+npm run build:wasm
+
+# 2. Bundle the web app
+npm run build
+```
+
+For local development:
+
+```sh
+npm run build:wasm   # once, or after changing Rust code
+npm run dev          # Vite dev server with HMR
+```
 
 ## Goals
 

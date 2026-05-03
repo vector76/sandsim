@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sandsim</title>
+    <style>
+      body { margin: 0; background: #111; color: #eee; font-family: sans-serif; }
+      canvas { display: block; }
+      #warnings { position: fixed; top: 8px; left: 8px; z-index: 10; }
+      #file-input { position: fixed; top: 8px; right: 8px; z-index: 10; }
+    </style>
+  </head>
+  <body>
+    <canvas id="canvas"></canvas>
+    <div id="warnings"></div>
+    <input type="file" id="file-input" accept=".gcode,.nc,.ngc" />
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>
