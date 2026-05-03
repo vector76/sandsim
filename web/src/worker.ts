@@ -22,13 +22,24 @@ let simTime = 0;
 let lastTime: number | null = null;
 let tickScheduled = false;
 
+let tickCount = 0;
 function tick(): void {
   tickScheduled = false;
   if (!running || !sim) return;
   const now = performance.now();
   const dt = lastTime !== null ? (now - lastTime) / 1000 : 0;
   lastTime = now;
+  const beforePos = sim.ball_position();
   sim.step(dt);
+  const afterPos = sim.ball_position();
+  tickCount++;
+  if (tickCount <= 5 || tickCount % 120 === 0) {
+    const moved = Math.hypot(afterPos[0] - beforePos[0], afterPos[1] - beforePos[1]);
+    self.postMessage({
+      type: 'debug',
+      msg: `tick=${tickCount} dt=${dt.toFixed(4)} before=(${beforePos[0].toFixed(2)},${beforePos[1].toFixed(2)}) after=(${afterPos[0].toFixed(2)},${afterPos[1].toFixed(2)}) moved=${moved.toFixed(4)} done=${sim.is_done()}`,
+    } as unknown as WorkerMessage);
+  }
   simTime += dt;
 
   const freeBuf = bufA ?? bufB ?? null;
@@ -94,7 +105,17 @@ self.onmessage = (event: MessageEvent<MainMessage>) => {
     }
     case 'load': {
       if (!sim) return;
+      const beforeLoad = sim.ball_position();
+      const beforeDone = sim.is_done();
       const result = sim.load(msg.gcode, msg.mode) as { warnings: Warning[] };
+      const afterLoad = sim.ball_position();
+      const afterDone = sim.is_done();
+      sim.step(0.05);
+      const afterStep = sim.ball_position();
+      self.postMessage({
+        type: 'debug',
+        msg: `LOAD: gcodelen=${msg.gcode.length} mode=${msg.mode} warns=${result.warnings.length} beforePos=(${beforeLoad[0].toFixed(2)},${beforeLoad[1].toFixed(2)}) beforeDone=${beforeDone} afterPos=(${afterLoad[0].toFixed(2)},${afterLoad[1].toFixed(2)}) afterDone=${afterDone} stepPos=(${afterStep[0].toFixed(2)},${afterStep[1].toFixed(2)})`,
+      } as unknown as WorkerMessage);
       const warningsMsg: WorkerMessage = { type: 'warnings', warnings: result.warnings };
       self.postMessage(warningsMsg);
       if (msg.mode === 'reset') {
