@@ -34,22 +34,17 @@ describe('createSandMesh', () => {
 });
 
 describe('updateSandMesh', () => {
-  it('copies heightmap into texture.image.data', () => {
+  it('writes the heightmap into texture.image.data and bumps texture.version', () => {
     const handle = createSandMesh(2, 2, 10, 10);
+    const versionBefore = handle.texture.version;
     const data = new Float32Array([1.0, 2.0, 3.0, 4.0]);
     updateSandMesh(handle, data);
     const tex = handle.texture.image.data as unknown as Float32Array;
     expect(Array.from(tex)).toEqual([1.0, 2.0, 3.0, 4.0]);
-  });
-
-  it('marks the texture as needing a GPU upload (bumps version)', () => {
-    const handle = createSandMesh(2, 2, 10, 10);
-    const versionBefore = handle.texture.version;
-    updateSandMesh(handle, new Float32Array([0, 0, 0, 0]));
     expect(handle.texture.version).toBeGreaterThan(versionBefore);
   });
 
-  it('does not retain a reference to the input array', () => {
+  it('copies the heightmap rather than retaining a reference to it', () => {
     const handle = createSandMesh(2, 2, 10, 10);
     const data = new Float32Array([1, 2, 3, 4]);
     updateSandMesh(handle, data);
