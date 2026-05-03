@@ -4,6 +4,8 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 export interface SceneHandle {
   addLine(line: THREE.Line): void;
   removeLine(line: THREE.Line): void;
+  addObject(obj: THREE.Object3D): void;
+  removeObject(obj: THREE.Object3D): void;
   dispose(): void;
 }
 
@@ -36,7 +38,7 @@ export function initScene(canvas: HTMLCanvasElement, tableW: number, tableH: num
     new THREE.PlaneGeometry(tableW, tableH),
     new THREE.MeshLambertMaterial({ color: 0xc2a97a }),
   );
-  tableMesh.position.set(tableW / 2, tableH / 2, 0);
+  tableMesh.position.set(tableW / 2, tableH / 2, -0.1);
   scene.add(tableMesh);
 
   function animate() {
@@ -61,6 +63,12 @@ export function initScene(canvas: HTMLCanvasElement, tableW: number, tableH: num
     },
     removeLine(line: THREE.Line): void {
       scene.remove(line);
+    },
+    addObject(obj: THREE.Object3D): void {
+      scene.add(obj);
+    },
+    removeObject(obj: THREE.Object3D): void {
+      scene.remove(obj);
     },
     dispose(): void {
       window.removeEventListener('resize', onResize);

@@ -51,6 +51,12 @@ describe('initScene', () => {
     expect(typeof handle.removeLine).toBe('function');
   });
 
+  it('returns a handle with addObject and removeObject methods', () => {
+    handle = initScene(canvas, 300, 200);
+    expect(typeof handle.addObject).toBe('function');
+    expect(typeof handle.removeObject).toBe('function');
+  });
+
   it('addLine does not throw', () => {
     handle = initScene(canvas, 300, 200);
     const line = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineBasicMaterial());
