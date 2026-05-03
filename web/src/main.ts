@@ -1,32 +1,59 @@
-import type { Line, Material } from 'three';
 import { initScene } from './render/scene.js';
-import { buildToolpathLine } from './render/toolpath.js';
 import { setupFileDrop } from './ui/file-drop.js';
 import { renderWarnings } from './ui/warnings.js';
-import { parseGcode } from './wasm.js';
-import { DEFAULT_CONFIG } from './types.js';
+import { createSandMesh, updateSandMesh } from './render/sand-mesh.js';
+import { createBallMesh, updateBallMesh } from './render/ball.js';
+import { DEFAULT_SIM_CONFIG } from './types.js';
+import type { WorkerMessage, MainMessage } from './sim-protocol.js';
 
 const canvas = document.getElementById('canvas') as HTMLCanvasElement;
 const warningsEl = document.getElementById('warnings') as HTMLElement;
 
-const sceneHandle = initScene(canvas, DEFAULT_CONFIG.table_width_mm, DEFAULT_CONFIG.table_height_mm);
+const cfg = DEFAULT_SIM_CONFIG;
+const nx = Math.ceil(cfg.table_width_mm / cfg.cell_mm);
+const ny = Math.ceil(cfg.table_height_mm / cfg.cell_mm);
 
-let currentLine: Line | null = null;
+const sceneHandle = initScene(canvas, cfg.table_width_mm, cfg.table_height_mm);
+const sandMesh = createSandMesh(nx, ny, cfg.table_width_mm, cfg.table_height_mm);
+sceneHandle.addObject(sandMesh);
+const ballMesh = createBallMesh(cfg.ball_radius_mm);
+sceneHandle.addObject(ballMesh);
 
-setupFileDrop(async (text: string) => {
-  try {
-    const output = await parseGcode(text, DEFAULT_CONFIG);
-    if (currentLine !== null) {
-      sceneHandle.removeLine(currentLine);
-      currentLine.geometry.dispose();
-      (currentLine.material as Material).dispose();
+let workerReady = false;
+let pendingGcode: string | null = null;
+
+const worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' });
+
+worker.onmessage = (evt: MessageEvent<WorkerMessage>) => {
+  const msg = evt.data;
+  switch (msg.type) {
+    case 'ready':
+      workerReady = true;
+      worker.postMessage({ type: 'config', config: cfg } as MainMessage);
+      if (pendingGcode !== null) {
+        worker.postMessage({ type: 'load', gcode: pendingGcode, mode: 'reset' } as MainMessage);
+        pendingGcode = null;
+      }
+      break;
+    case 'warnings':
+      renderWarnings(warningsEl, msg.warnings);
+      break;
+    case 'frame': {
+      const view = new Float32Array(msg.buf);
+      updateSandMesh(sandMesh, view, nx);
+      updateBallMesh(ballMesh, msg.ballPos.x, msg.ballPos.y, cfg.ball_radius_mm);
+      worker.postMessage({ type: 'release', buf: msg.buf } as MainMessage, [msg.buf]);
+      break;
     }
-    currentLine = buildToolpathLine(output.moves, DEFAULT_CONFIG.ball_radius_mm);
-    sceneHandle.addLine(currentLine);
-    renderWarnings(warningsEl, output.warnings);
-  } catch (err) {
-    console.error('Failed to parse gcode:', err);
+    case 'done':
+      console.log('Simulation complete');
+      break;
   }
+};
+
+setupFileDrop((text: string) => {
+  if (!workerReady) { pendingGcode = text; return; }
+  worker.postMessage({ type: 'load', gcode: text, mode: 'reset' } as MainMessage);
 });
 
 renderWarnings(warningsEl, []);

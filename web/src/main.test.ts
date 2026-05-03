@@ -1,37 +1,69 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { DEFAULT_SIM_CONFIG } from './types.js';
 
-// Hoisted mocks must be declared before imports
-const { mockAddLine, mockRemoveLine, mockInitScene, mockBuildToolpathLine, mockSetupFileDrop, mockRenderWarnings, mockParseGcode } =
-  vi.hoisted(() => {
-    const mockAddLine = vi.fn();
-    const mockRemoveLine = vi.fn();
-    const mockInitScene = vi.fn(() => ({ addLine: mockAddLine, removeLine: mockRemoveLine, dispose: vi.fn() }));
-    const mockBuildToolpathLine = vi.fn(() => ({
-      geometry: { dispose: vi.fn() },
-      material: { dispose: vi.fn() },
-    }));
-    const mockSetupFileDrop = vi.fn();
-    const mockRenderWarnings = vi.fn();
-    const mockParseGcode = vi.fn(async () => ({ moves: [] as unknown[], warnings: [] as unknown[] }));
-    return {
-      mockAddLine,
-      mockRemoveLine,
-      mockInitScene,
-      mockBuildToolpathLine,
-      mockSetupFileDrop,
-      mockRenderWarnings,
-      mockParseGcode,
-    };
-  });
+const {
+  mockAddObject,
+  mockInitScene,
+  mockCreateSandMesh,
+  mockUpdateSandMesh,
+  mockCreateBallMesh,
+  mockUpdateBallMesh,
+  mockSetupFileDrop,
+  mockRenderWarnings,
+} = vi.hoisted(() => {
+  const mockAddObject = vi.fn();
+  const mockInitScene = vi.fn(() => ({
+    addLine: vi.fn(),
+    removeLine: vi.fn(),
+    addObject: mockAddObject,
+    removeObject: vi.fn(),
+    dispose: vi.fn(),
+  }));
+  const mockCreateSandMesh = vi.fn(() => ({ __kind: 'sand' }));
+  const mockUpdateSandMesh = vi.fn();
+  const mockCreateBallMesh = vi.fn(() => ({ __kind: 'ball' }));
+  const mockUpdateBallMesh = vi.fn();
+  const mockSetupFileDrop = vi.fn();
+  const mockRenderWarnings = vi.fn();
+  return {
+    mockAddObject,
+    mockInitScene,
+    mockCreateSandMesh,
+    mockUpdateSandMesh,
+    mockCreateBallMesh,
+    mockUpdateBallMesh,
+    mockSetupFileDrop,
+    mockRenderWarnings,
+  };
+});
 
 vi.mock('./render/scene.js', () => ({ initScene: mockInitScene }));
-vi.mock('./render/toolpath.js', () => ({ buildToolpathLine: mockBuildToolpathLine }));
+vi.mock('./render/sand-mesh.js', () => ({
+  createSandMesh: mockCreateSandMesh,
+  updateSandMesh: mockUpdateSandMesh,
+}));
+vi.mock('./render/ball.js', () => ({
+  createBallMesh: mockCreateBallMesh,
+  updateBallMesh: mockUpdateBallMesh,
+}));
 vi.mock('./ui/file-drop.js', () => ({ setupFileDrop: mockSetupFileDrop }));
 vi.mock('./ui/warnings.js', () => ({ renderWarnings: mockRenderWarnings }));
-vi.mock('./wasm.js', () => ({ parseGcode: mockParseGcode }));
 
-function setupDom() {
+class FakeWorker {
+  onmessage: ((evt: MessageEvent) => void) | null = null;
+  postMessage = vi.fn();
+  terminate = vi.fn();
+  static lastInstance: FakeWorker | null = null;
+  constructor(public url: string | URL, public options?: WorkerOptions) {
+    FakeWorker.lastInstance = this;
+  }
+  emit(data: unknown): void {
+    this.onmessage?.({ data } as MessageEvent);
+  }
+}
+
+function setupDom(): void {
   document.body.innerHTML = `
     <canvas id="canvas"></canvas>
     <div id="warnings"></div>
@@ -44,19 +76,43 @@ describe('main bootstrap', () => {
     setupDom();
     vi.clearAllMocks();
     vi.resetModules();
+    FakeWorker.lastInstance = null;
+    vi.stubGlobal('Worker', FakeWorker);
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
   });
 
-  it('calls initScene with canvas and DEFAULT_CONFIG dimensions', async () => {
+  it('calls initScene with canvas and DEFAULT_SIM_CONFIG dimensions', async () => {
     await import('./main.js');
     const canvas = document.getElementById('canvas') as HTMLCanvasElement;
-    expect(mockInitScene).toHaveBeenCalledWith(canvas, 300, 200);
+    expect(mockInitScene).toHaveBeenCalledWith(
+      canvas,
+      DEFAULT_SIM_CONFIG.table_width_mm,
+      DEFAULT_SIM_CONFIG.table_height_mm,
+    );
   });
 
-  it('calls renderWarnings with empty array on startup', async () => {
+  it('creates sand and ball meshes and adds them to the scene', async () => {
+    await import('./main.js');
+    const expectedNx = Math.ceil(
+      DEFAULT_SIM_CONFIG.table_width_mm / DEFAULT_SIM_CONFIG.cell_mm,
+    );
+    const expectedNy = Math.ceil(
+      DEFAULT_SIM_CONFIG.table_height_mm / DEFAULT_SIM_CONFIG.cell_mm,
+    );
+    expect(mockCreateSandMesh).toHaveBeenCalledWith(
+      expectedNx,
+      expectedNy,
+      DEFAULT_SIM_CONFIG.table_width_mm,
+      DEFAULT_SIM_CONFIG.table_height_mm,
+    );
+    expect(mockCreateBallMesh).toHaveBeenCalledWith(DEFAULT_SIM_CONFIG.ball_radius_mm);
+    expect(mockAddObject).toHaveBeenCalledTimes(2);
+  });
+
+  it('renders empty warnings on startup', async () => {
     await import('./main.js');
     expect(mockRenderWarnings).toHaveBeenCalledWith(
       document.getElementById('warnings'),
@@ -64,44 +120,107 @@ describe('main bootstrap', () => {
     );
   });
 
-  it('calls setupFileDrop with a callback', async () => {
+  it('sends config to worker after ready message', async () => {
     await import('./main.js');
-    expect(mockSetupFileDrop).toHaveBeenCalledTimes(1);
-    expect(typeof mockSetupFileDrop.mock.calls[0][0]).toBe('function');
+    const worker = FakeWorker.lastInstance!;
+    expect(worker).not.toBeNull();
+    worker.emit({ type: 'ready' });
+    expect(worker.postMessage).toHaveBeenCalledWith({
+      type: 'config',
+      config: DEFAULT_SIM_CONFIG,
+    });
   });
 
-  it('file callback: parses gcode and adds line to scene', async () => {
+  it('queues file drop before ready and sends load after ready', async () => {
     await import('./main.js');
-    const callback = mockSetupFileDrop.mock.calls[0][0] as (text: string) => Promise<void>;
-    const fakeOutput = { moves: [{ line: 1, x_mm: 10, y_mm: 20, feedrate_mm_per_min: 1000 }], warnings: [] };
-    mockParseGcode.mockResolvedValueOnce(fakeOutput);
-    const fakeLine = { geometry: { dispose: vi.fn() }, material: { dispose: vi.fn() } };
-    mockBuildToolpathLine.mockReturnValueOnce(fakeLine);
+    const worker = FakeWorker.lastInstance!;
+    const fileCallback = mockSetupFileDrop.mock.calls[0][0] as (text: string) => void;
 
-    await callback('G0 X10 Y20');
+    fileCallback('G0 X10');
+    expect(worker.postMessage).not.toHaveBeenCalled();
 
-    expect(mockParseGcode).toHaveBeenCalledWith('G0 X10 Y20', expect.objectContaining({ table_width_mm: 300 }));
-    expect(mockBuildToolpathLine).toHaveBeenCalledWith(fakeOutput.moves, 5);
-    expect(mockAddLine).toHaveBeenCalledWith(fakeLine);
-    expect(mockRenderWarnings).toHaveBeenCalledWith(document.getElementById('warnings'), []);
+    worker.emit({ type: 'ready' });
+
+    expect(worker.postMessage).toHaveBeenCalledWith({
+      type: 'config',
+      config: DEFAULT_SIM_CONFIG,
+    });
+    expect(worker.postMessage).toHaveBeenCalledWith({
+      type: 'load',
+      gcode: 'G0 X10',
+      mode: 'reset',
+    });
   });
 
-  it('file callback: removes previous line before adding new one', async () => {
+  it('posts load immediately when file drop occurs after ready', async () => {
     await import('./main.js');
-    const callback = mockSetupFileDrop.mock.calls[0][0] as (text: string) => Promise<void>;
+    const worker = FakeWorker.lastInstance!;
+    worker.emit({ type: 'ready' });
+    worker.postMessage.mockClear();
 
-    const firstLine = { geometry: { dispose: vi.fn() }, material: { dispose: vi.fn() } };
-    const secondLine = { geometry: { dispose: vi.fn() }, material: { dispose: vi.fn() } };
-    mockBuildToolpathLine.mockReturnValueOnce(firstLine).mockReturnValueOnce(secondLine);
+    const fileCallback = mockSetupFileDrop.mock.calls[0][0] as (text: string) => void;
+    fileCallback('G1 X20');
 
-    await callback('G0 X10');
-    expect(mockRemoveLine).not.toHaveBeenCalled();
-    expect(mockAddLine).toHaveBeenCalledWith(firstLine);
+    expect(worker.postMessage).toHaveBeenCalledWith({
+      type: 'load',
+      gcode: 'G1 X20',
+      mode: 'reset',
+    });
+  });
 
-    await callback('G0 X20');
-    expect(mockRemoveLine).toHaveBeenCalledWith(firstLine);
-    expect(firstLine.geometry.dispose).toHaveBeenCalled();
-    expect(firstLine.material.dispose).toHaveBeenCalled();
-    expect(mockAddLine).toHaveBeenCalledWith(secondLine);
+  it('updates sand and ball meshes and releases buffer on frame message', async () => {
+    await import('./main.js');
+    const worker = FakeWorker.lastInstance!;
+    worker.emit({ type: 'ready' });
+    worker.postMessage.mockClear();
+
+    const expectedNx = Math.ceil(
+      DEFAULT_SIM_CONFIG.table_width_mm / DEFAULT_SIM_CONFIG.cell_mm,
+    );
+    const expectedNy = Math.ceil(
+      DEFAULT_SIM_CONFIG.table_height_mm / DEFAULT_SIM_CONFIG.cell_mm,
+    );
+    const buf = new ArrayBuffer(expectedNx * expectedNy * 4);
+    worker.emit({
+      type: 'frame',
+      buf,
+      nx: expectedNx,
+      ny: expectedNy,
+      ballPos: { x: 12, y: 34 },
+      simTime: 0.5,
+    });
+
+    expect(mockUpdateSandMesh).toHaveBeenCalledTimes(1);
+    const updateCall = mockUpdateSandMesh.mock.calls[0];
+    expect(updateCall[0]).toEqual({ __kind: 'sand' });
+    expect(updateCall[1]).toBeInstanceOf(Float32Array);
+    expect((updateCall[1] as Float32Array).buffer).toBe(buf);
+    expect(updateCall[2]).toBe(expectedNx);
+
+    expect(mockUpdateBallMesh).toHaveBeenCalledWith(
+      { __kind: 'ball' },
+      12,
+      34,
+      DEFAULT_SIM_CONFIG.ball_radius_mm,
+    );
+
+    expect(worker.postMessage).toHaveBeenCalledWith(
+      { type: 'release', buf },
+      [buf],
+    );
+  });
+
+  it('renders warnings when worker posts warnings message', async () => {
+    await import('./main.js');
+    const worker = FakeWorker.lastInstance!;
+    mockRenderWarnings.mockClear();
+
+    const warnings = [{ line: 3, message: 'oops', source: 'parser' }];
+    worker.emit({ type: 'warnings', warnings });
+
+    expect(mockRenderWarnings).toHaveBeenCalledWith(
+      document.getElementById('warnings'),
+      warnings,
+    );
   });
 });
