@@ -1,5 +1,7 @@
 //! GCode parser. See `docs/gcode-subset.md` for the supported dialect.
 
+use serde::Serialize;
+
 #[derive(Debug, Clone, Copy)]
 pub struct ParserConfig {
     pub table_width_mm: f32,
@@ -17,7 +19,7 @@ impl ParserConfig {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct MoveEvent {
     pub line: u32,
     pub x_mm: f32,
@@ -25,14 +27,14 @@ pub struct MoveEvent {
     pub feedrate_mm_per_min: f32,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Warning {
     pub line: u32,
     pub message: String,
     pub source: String,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Serialize)]
 pub struct ParseOutput {
     pub moves: Vec<MoveEvent>,
     pub warnings: Vec<Warning>,
