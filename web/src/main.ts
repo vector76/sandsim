@@ -49,7 +49,7 @@ const ballMesh = createBallMesh(cfg.ball_radius_mm);
 sceneHandle.addObject(ballMesh);
 
 let workerReady = false;
-let pendingGcode: string | null = null;
+let pendingLoad: { gcode: string; mode: 'reset' | 'append' } | null = null;
 
 const worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' });
 worker.onerror = (e) => dbg('WORKER ERROR: ' + (e.message || e));
@@ -64,10 +64,10 @@ worker.onmessage = (evt: MessageEvent<WorkerMessage>) => {
       workerReady = true;
       worker.postMessage({ type: 'config', config: cfg } as MainMessage);
       dbg('sent config');
-      if (pendingGcode !== null) {
-        worker.postMessage({ type: 'load', gcode: pendingGcode, mode: 'reset' } as MainMessage);
+      if (pendingLoad !== null) {
+        worker.postMessage({ type: 'load', gcode: pendingLoad.gcode, mode: pendingLoad.mode } as MainMessage);
         dbg('sent pending load');
-        pendingGcode = null;
+        pendingLoad = null;
       }
       break;
     case 'warnings':
@@ -96,10 +96,10 @@ worker.onmessage = (evt: MessageEvent<WorkerMessage>) => {
   }
 };
 
-setupFileDrop((text: string) => {
-  dbg(`file received (${text.length} chars), workerReady=${workerReady}`);
-  if (!workerReady) { pendingGcode = text; return; }
-  worker.postMessage({ type: 'load', gcode: text, mode: 'reset' } as MainMessage);
+setupFileDrop((text: string, mode: 'reset' | 'append') => {
+  dbg(`file received (${text.length} chars), mode=${mode}, workerReady=${workerReady}`);
+  if (!workerReady) { pendingLoad = { gcode: text, mode }; return; }
+  worker.postMessage({ type: 'load', gcode: text, mode } as MainMessage);
   dbg('sent load to worker');
 });
 

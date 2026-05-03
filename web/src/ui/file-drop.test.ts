@@ -23,7 +23,12 @@ describe('setupFileDrop', () => {
 
   beforeEach(() => {
     const newBody = document.createElement('body');
-    newBody.innerHTML = '<input type="file" id="file-input" />';
+    newBody.innerHTML =
+      '<input type="file" id="file-input" />' +
+      '<select id="file-mode">' +
+      '<option value="reset" selected>Reset sand</option>' +
+      '<option value="append">Append onto existing pattern</option>' +
+      '</select>';
     document.documentElement.replaceChild(newBody, document.body);
     onFile = vi.fn();
   });
@@ -53,7 +58,7 @@ describe('setupFileDrop', () => {
     input.dispatchEvent(new Event('change'));
 
     await new Promise((r) => setTimeout(r, 10));
-    expect(onFile).toHaveBeenCalledWith(fakeContent);
+    expect(onFile).toHaveBeenCalledWith(fakeContent, 'reset');
   });
 
   it('calls preventDefault on dragover', () => {
@@ -78,7 +83,27 @@ describe('setupFileDrop', () => {
     document.body.dispatchEvent(event);
 
     await new Promise((r) => setTimeout(r, 10));
-    expect(onFile).toHaveBeenCalledWith(fakeContent);
+    expect(onFile).toHaveBeenCalledWith(fakeContent, 'reset');
+  });
+
+  it('passes append mode when selector is set to append', async () => {
+    const fakeContent = 'G1 X1 Y1';
+    const readerInstance = mockFileReader(fakeContent);
+    vi.stubGlobal('FileReader', vi.fn(() => readerInstance));
+
+    setupFileDrop(onFile);
+
+    const select = document.getElementById('file-mode') as HTMLSelectElement;
+    select.value = 'append';
+
+    const event = new Event('drop', { bubbles: true, cancelable: true }) as DragEvent;
+    Object.defineProperty(event, 'dataTransfer', {
+      value: { files: [makeFakeFile(fakeContent)] },
+    });
+    document.body.dispatchEvent(event);
+
+    await new Promise((r) => setTimeout(r, 10));
+    expect(onFile).toHaveBeenCalledWith(fakeContent, 'append');
   });
 
   it('does nothing on drop with no files', async () => {

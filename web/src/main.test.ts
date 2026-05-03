@@ -134,9 +134,12 @@ describe('main bootstrap', () => {
   it('queues file drop before ready and sends load after ready', async () => {
     await import('./main.js');
     const worker = FakeWorker.lastInstance!;
-    const fileCallback = mockSetupFileDrop.mock.calls[0][0] as (text: string) => void;
+    const fileCallback = mockSetupFileDrop.mock.calls[0][0] as (
+      text: string,
+      mode: 'reset' | 'append',
+    ) => void;
 
-    fileCallback('G0 X10');
+    fileCallback('G0 X10', 'reset');
     expect(worker.postMessage).not.toHaveBeenCalled();
 
     worker.emit({ type: 'ready' });
@@ -158,13 +161,35 @@ describe('main bootstrap', () => {
     worker.emit({ type: 'ready' });
     worker.postMessage.mockClear();
 
-    const fileCallback = mockSetupFileDrop.mock.calls[0][0] as (text: string) => void;
-    fileCallback('G1 X20');
+    const fileCallback = mockSetupFileDrop.mock.calls[0][0] as (
+      text: string,
+      mode: 'reset' | 'append',
+    ) => void;
+    fileCallback('G1 X20', 'reset');
 
     expect(worker.postMessage).toHaveBeenCalledWith({
       type: 'load',
       gcode: 'G1 X20',
       mode: 'reset',
+    });
+  });
+
+  it('forwards append mode from file drop callback to worker', async () => {
+    await import('./main.js');
+    const worker = FakeWorker.lastInstance!;
+    worker.emit({ type: 'ready' });
+    worker.postMessage.mockClear();
+
+    const fileCallback = mockSetupFileDrop.mock.calls[0][0] as (
+      text: string,
+      mode: 'reset' | 'append',
+    ) => void;
+    fileCallback('G1 X30', 'append');
+
+    expect(worker.postMessage).toHaveBeenCalledWith({
+      type: 'load',
+      gcode: 'G1 X30',
+      mode: 'append',
     });
   });
 
