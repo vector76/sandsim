@@ -1,6 +1,7 @@
 import { initScene } from './render/scene.js';
 import { setupFileDrop } from './ui/file-drop.js';
 import { renderWarnings } from './ui/warnings.js';
+import type { Warning } from './types.js';
 import { createSandMesh, updateSandMesh } from './render/sand-mesh.js';
 import { createBallMesh, updateBallMesh } from './render/ball.js';
 import { DEFAULT_SIM_CONFIG } from './types.js';
@@ -50,6 +51,8 @@ sceneHandle.addObject(ballMesh);
 
 let workerReady = false;
 let pendingLoad: { gcode: string; mode: 'reset' | 'append' } | null = null;
+let lastLoadMode: 'reset' | 'append' = 'reset';
+let accumulatedWarnings: Warning[] = [];
 
 const worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' });
 worker.onerror = (e) => dbg('WORKER ERROR: ' + (e.message || e));
@@ -65,6 +68,7 @@ worker.onmessage = (evt: MessageEvent<WorkerMessage>) => {
       worker.postMessage({ type: 'config', config: cfg } as MainMessage);
       dbg('sent config');
       if (pendingLoad !== null) {
+        lastLoadMode = pendingLoad.mode;
         worker.postMessage({ type: 'load', gcode: pendingLoad.gcode, mode: pendingLoad.mode } as MainMessage);
         dbg('sent pending load');
         pendingLoad = null;
@@ -72,7 +76,10 @@ worker.onmessage = (evt: MessageEvent<WorkerMessage>) => {
       break;
     case 'warnings':
       dbg('warnings: ' + msg.warnings.length);
-      renderWarnings(warningsEl, msg.warnings);
+      accumulatedWarnings = lastLoadMode === 'append'
+        ? accumulatedWarnings.concat(msg.warnings)
+        : msg.warnings.slice();
+      renderWarnings(warningsEl, accumulatedWarnings);
       break;
     case 'frame': {
       frameCount++;
@@ -99,6 +106,7 @@ worker.onmessage = (evt: MessageEvent<WorkerMessage>) => {
 setupFileDrop((text: string, mode: 'reset' | 'append') => {
   dbg(`file received (${text.length} chars), mode=${mode}, workerReady=${workerReady}`);
   if (!workerReady) { pendingLoad = { gcode: text, mode }; return; }
+  lastLoadMode = mode;
   worker.postMessage({ type: 'load', gcode: text, mode } as MainMessage);
   dbg('sent load to worker');
 });

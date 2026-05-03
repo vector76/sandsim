@@ -248,4 +248,79 @@ describe('main bootstrap', () => {
       warnings,
     );
   });
+
+  it('replaces accumulated warnings when last load was reset', async () => {
+    await import('./main.js');
+    const worker = FakeWorker.lastInstance!;
+    worker.emit({ type: 'ready' });
+
+    const fileCallback = mockSetupFileDrop.mock.calls[0][0] as (
+      text: string,
+      mode: 'reset' | 'append',
+    ) => void;
+
+    const first = [{ line: 1, message: 'a', source: 'parser' }];
+    worker.emit({ type: 'warnings', warnings: first });
+
+    fileCallback('G0', 'reset');
+    const second = [{ line: 2, message: 'b', source: 'parser' }];
+    mockRenderWarnings.mockClear();
+    worker.emit({ type: 'warnings', warnings: second });
+
+    expect(mockRenderWarnings).toHaveBeenLastCalledWith(
+      document.getElementById('warnings'),
+      second,
+    );
+  });
+
+  it('concatenates warnings when last load was append', async () => {
+    await import('./main.js');
+    const worker = FakeWorker.lastInstance!;
+    worker.emit({ type: 'ready' });
+
+    const fileCallback = mockSetupFileDrop.mock.calls[0][0] as (
+      text: string,
+      mode: 'reset' | 'append',
+    ) => void;
+
+    fileCallback('G0', 'reset');
+    const first = [{ line: 1, message: 'a', source: 'parser' }];
+    worker.emit({ type: 'warnings', warnings: first });
+
+    fileCallback('G1', 'append');
+    const second = [{ line: 2, message: 'b', source: 'parser' }];
+    mockRenderWarnings.mockClear();
+    worker.emit({ type: 'warnings', warnings: second });
+
+    expect(mockRenderWarnings).toHaveBeenLastCalledWith(
+      document.getElementById('warnings'),
+      [...first, ...second],
+    );
+  });
+
+  it('clears accumulated warnings when switching back to reset after append', async () => {
+    await import('./main.js');
+    const worker = FakeWorker.lastInstance!;
+    worker.emit({ type: 'ready' });
+
+    const fileCallback = mockSetupFileDrop.mock.calls[0][0] as (
+      text: string,
+      mode: 'reset' | 'append',
+    ) => void;
+
+    fileCallback('G0', 'reset');
+    worker.emit({ type: 'warnings', warnings: [{ line: 1, message: 'a', source: 'parser' }] });
+    fileCallback('G1', 'append');
+    worker.emit({ type: 'warnings', warnings: [{ line: 2, message: 'b', source: 'parser' }] });
+
+    fileCallback('G2', 'reset');
+    const fresh = [{ line: 9, message: 'fresh', source: 'parser' }];
+    mockRenderWarnings.mockClear();
+    worker.emit({ type: 'warnings', warnings: fresh });
+
+    expect(mockRenderWarnings).toHaveBeenLastCalledWith(
+      document.getElementById('warnings'),
+      fresh,
+    );
+  });
 });
