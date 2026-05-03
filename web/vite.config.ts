@@ -6,4 +6,5 @@ export default defineConfig({
   plugins: [wasm(), topLevelAwait()],
   base: './',
   server: { host: true },
+  build: { chunkSizeWarningLimit: 2000 },
 });
