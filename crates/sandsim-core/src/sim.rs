@@ -9,6 +9,9 @@ pub struct SimConfig {
     pub ball_radius_mm: f32,
     pub default_feedrate_mm_per_min: f32,
     pub interp_fraction: f32,
+    pub theta_repose_deg: f32,
+    pub n_segments: usize,
+    pub repose_max_iters: usize,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -180,6 +183,9 @@ mod tests {
             ball_radius_mm: 5.0,
             default_feedrate_mm_per_min: 1000.0,
             interp_fraction: 0.5,
+            theta_repose_deg: 30.0,
+            n_segments: 8,
+            repose_max_iters: 16,
         }
     }
 

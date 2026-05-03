@@ -46,6 +46,9 @@ impl Sim {
             ball_radius_mm,
             default_feedrate_mm_per_min,
             interp_fraction: 0.5,
+            theta_repose_deg: 30.0,
+            n_segments: 8,
+            repose_max_iters: 16,
         };
         Sim {
             inner: CoreSim::new(config),
