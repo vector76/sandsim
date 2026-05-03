@@ -8,13 +8,27 @@ export function renderWarnings(container: HTMLElement, warnings: Warning[]): voi
 
   container.style.display = '';
   container.innerHTML = '';
-  const ul = document.createElement('ul');
+
+  const count = document.createElement('div');
+  count.className = 'warnings-count';
+  count.textContent = warnings.length === 1 ? '1 warning' : `${warnings.length} warnings`;
+  container.appendChild(count);
+
+  const byLine = new Map<number, Warning[]>();
   for (const w of warnings) {
+    const list = byLine.get(w.line);
+    if (list) {
+      list.push(w);
+    } else {
+      byLine.set(w.line, [w]);
+    }
+  }
+
+  const ul = document.createElement('ul');
+  for (const [line, group] of byLine) {
     const li = document.createElement('li');
-    const em = document.createElement('em');
-    em.textContent = `(${w.source})`;
-    li.textContent = `Line ${w.line}: ${w.message} `;
-    li.appendChild(em);
+    const parts = group.map((w) => `${w.message} (${w.source})`);
+    li.textContent = `Line ${line}: ${parts.join('; ')}`;
     ul.appendChild(li);
   }
   container.appendChild(ul);

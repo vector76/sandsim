@@ -29,7 +29,20 @@ describe('renderWarnings', () => {
     expect(container.style.display).not.toBe('none');
   });
 
-  it('renders one list item per warning', () => {
+  it('collapses two warnings on the same line into one entry containing both messages', () => {
+    const warnings: Warning[] = [
+      { line: 4, message: 'Out of bounds', source: 'bounds-check' },
+      { line: 4, message: 'Missing feedrate', source: 'parser' },
+    ];
+    renderWarnings(container, warnings);
+    const items = container.querySelectorAll('li');
+    expect(items).toHaveLength(1);
+    expect(items[0].textContent).toContain('Line 4');
+    expect(items[0].textContent).toContain('Out of bounds');
+    expect(items[0].textContent).toContain('Missing feedrate');
+  });
+
+  it('renders two entries when warnings are on different lines', () => {
     const warnings: Warning[] = [
       { line: 3, message: 'Out of bounds', source: 'bounds-check' },
       { line: 7, message: 'Missing feedrate', source: 'parser' },
@@ -37,15 +50,27 @@ describe('renderWarnings', () => {
     renderWarnings(container, warnings);
     const items = container.querySelectorAll('li');
     expect(items).toHaveLength(2);
+    expect(items[0].textContent).toContain('Line 3');
+    expect(items[1].textContent).toContain('Line 7');
   });
 
-  it('includes line, message, and source in each item', () => {
-    const warnings: Warning[] = [{ line: 5, message: 'Negative coordinate', source: 'validator' }];
+  it('shows a count badge with total warning count (plural)', () => {
+    const warnings: Warning[] = [
+      { line: 4, message: 'a', source: 's' },
+      { line: 4, message: 'b', source: 's' },
+      { line: 9, message: 'c', source: 's' },
+    ];
     renderWarnings(container, warnings);
-    const item = container.querySelector('li')!;
-    expect(item.textContent).toContain('5');
-    expect(item.textContent).toContain('Negative coordinate');
-    expect(item.textContent).toContain('validator');
+    const badge = container.querySelector('.warnings-count')!;
+    expect(badge).not.toBeNull();
+    expect(badge.textContent).toBe('3 warnings');
+  });
+
+  it('uses singular form in the count badge for a single warning', () => {
+    const warnings: Warning[] = [{ line: 1, message: 'a', source: 's' }];
+    renderWarnings(container, warnings);
+    const badge = container.querySelector('.warnings-count')!;
+    expect(badge.textContent).toBe('1 warning');
   });
 
   it('rebuilds inner HTML on successive calls', () => {
@@ -56,7 +81,9 @@ describe('renderWarnings', () => {
     ];
     renderWarnings(container, first);
     expect(container.querySelectorAll('li')).toHaveLength(1);
+    expect(container.querySelector('.warnings-count')!.textContent).toBe('1 warning');
     renderWarnings(container, second);
     expect(container.querySelectorAll('li')).toHaveLength(2);
+    expect(container.querySelector('.warnings-count')!.textContent).toBe('2 warnings');
   });
 });
