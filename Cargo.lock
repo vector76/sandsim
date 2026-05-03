@@ -98,6 +98,7 @@ name = "sandsim-wasm"
 version = "0.1.0"
 dependencies = [
  "sandsim-core",
+ "serde",
  "serde-wasm-bindgen",
  "wasm-bindgen",
 ]
