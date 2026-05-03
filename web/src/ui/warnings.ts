@@ -8,12 +8,14 @@ export function renderWarnings(container: HTMLElement, warnings: Warning[]): voi
 
   container.style.display = '';
   container.innerHTML = '';
+  const ul = document.createElement('ul');
   for (const w of warnings) {
     const li = document.createElement('li');
     const em = document.createElement('em');
     em.textContent = `(${w.source})`;
     li.textContent = `Line ${w.line}: ${w.message} `;
     li.appendChild(em);
-    container.appendChild(li);
+    ul.appendChild(li);
   }
+  container.appendChild(ul);
 }

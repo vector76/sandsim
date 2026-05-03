@@ -6,7 +6,11 @@ export function setupFileDrop(onFile: (text: string) => void): void {
       const file = input.files?.[0];
       if (!file) return;
       const reader = new FileReader();
-      reader.onload = () => onFile(reader.result as string);
+      reader.onload = () => {
+        input.value = ''; // allow re-selecting the same file
+        onFile(reader.result as string);
+      };
+      reader.onerror = () => console.error('Failed to read file:', reader.error);
       reader.readAsText(file);
     });
   }
@@ -21,6 +25,7 @@ export function setupFileDrop(onFile: (text: string) => void): void {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = () => onFile(reader.result as string);
+    reader.onerror = () => console.error('Failed to read file:', reader.error);
     reader.readAsText(file);
   });
 }

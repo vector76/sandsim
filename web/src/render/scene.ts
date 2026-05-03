@@ -4,6 +4,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 export interface SceneHandle {
   addLine(line: THREE.Line): void;
   removeLine(line: THREE.Line): void;
+  dispose(): void;
 }
 
 export function initScene(canvas: HTMLCanvasElement, tableW: number, tableH: number): SceneHandle {
@@ -45,13 +46,14 @@ export function initScene(canvas: HTMLCanvasElement, tableW: number, tableH: num
   }
   animate();
 
-  window.addEventListener('resize', () => {
+  const onResize = () => {
     const newW = canvas.clientWidth || canvas.width;
     const newH = canvas.clientHeight || canvas.height;
     renderer.setSize(newW, newH, false);
     camera.aspect = newW / (newH || 1);
     camera.updateProjectionMatrix();
-  });
+  };
+  window.addEventListener('resize', onResize);
 
   return {
     addLine(line: THREE.Line): void {
@@ -59,6 +61,9 @@ export function initScene(canvas: HTMLCanvasElement, tableW: number, tableH: num
     },
     removeLine(line: THREE.Line): void {
       scene.remove(line);
+    },
+    dispose(): void {
+      window.removeEventListener('resize', onResize);
     },
   };
 }

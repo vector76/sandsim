@@ -6,11 +6,14 @@ const { mockAddLine, mockRemoveLine, mockInitScene, mockBuildToolpathLine, mockS
   vi.hoisted(() => {
     const mockAddLine = vi.fn();
     const mockRemoveLine = vi.fn();
-    const mockInitScene = vi.fn(() => ({ addLine: mockAddLine, removeLine: mockRemoveLine }));
-    const mockBuildToolpathLine = vi.fn(() => ({ isMockLine: true }));
+    const mockInitScene = vi.fn(() => ({ addLine: mockAddLine, removeLine: mockRemoveLine, dispose: vi.fn() }));
+    const mockBuildToolpathLine = vi.fn(() => ({
+      geometry: { dispose: vi.fn() },
+      material: { dispose: vi.fn() },
+    }));
     const mockSetupFileDrop = vi.fn();
     const mockRenderWarnings = vi.fn();
-    const mockParseGcode = vi.fn(async () => ({ moves: [], warnings: [] }));
+    const mockParseGcode = vi.fn(async () => ({ moves: [] as unknown[], warnings: [] as unknown[] }));
     return {
       mockAddLine,
       mockRemoveLine,
@@ -72,7 +75,7 @@ describe('main bootstrap', () => {
     const callback = mockSetupFileDrop.mock.calls[0][0] as (text: string) => Promise<void>;
     const fakeOutput = { moves: [{ line: 1, x_mm: 10, y_mm: 20, feedrate_mm_per_min: 1000 }], warnings: [] };
     mockParseGcode.mockResolvedValueOnce(fakeOutput);
-    const fakeLine = { isFakeLine: true };
+    const fakeLine = { geometry: { dispose: vi.fn() }, material: { dispose: vi.fn() } };
     mockBuildToolpathLine.mockReturnValueOnce(fakeLine);
 
     await callback('G0 X10 Y20');
@@ -87,8 +90,8 @@ describe('main bootstrap', () => {
     await import('./main.js');
     const callback = mockSetupFileDrop.mock.calls[0][0] as (text: string) => Promise<void>;
 
-    const firstLine = { id: 'first' };
-    const secondLine = { id: 'second' };
+    const firstLine = { geometry: { dispose: vi.fn() }, material: { dispose: vi.fn() } };
+    const secondLine = { geometry: { dispose: vi.fn() }, material: { dispose: vi.fn() } };
     mockBuildToolpathLine.mockReturnValueOnce(firstLine).mockReturnValueOnce(secondLine);
 
     await callback('G0 X10');
@@ -97,6 +100,8 @@ describe('main bootstrap', () => {
 
     await callback('G0 X20');
     expect(mockRemoveLine).toHaveBeenCalledWith(firstLine);
+    expect(firstLine.geometry.dispose).toHaveBeenCalled();
+    expect(firstLine.material.dispose).toHaveBeenCalled();
     expect(mockAddLine).toHaveBeenCalledWith(secondLine);
   });
 });

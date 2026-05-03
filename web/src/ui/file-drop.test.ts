@@ -9,9 +9,9 @@ function makeFakeFile(content: string, name = 'test.gcode'): File {
 function mockFileReader(content: string) {
   const reader = {
     onload: null as ((e: ProgressEvent) => void) | null,
-    readAsText(this: typeof reader, _file: File) {
-      this.result = content;
-      setTimeout(() => this.onload?.({} as ProgressEvent), 0);
+    readAsText(_file: File) {
+      reader.result = content;
+      setTimeout(() => reader.onload?.({} as ProgressEvent), 0);
     },
     result: '' as string,
   };
@@ -91,5 +91,61 @@ describe('setupFileDrop', () => {
 
     await new Promise((r) => setTimeout(r, 10));
     expect(onFile).not.toHaveBeenCalled();
+  });
+
+  it('does not call onFile when FileReader errors on drop', async () => {
+    const fakeError = new DOMException('read error');
+    const reader = {
+      onload: null as (() => void) | null,
+      onerror: null as (() => void) | null,
+      result: '' as string,
+      error: fakeError,
+      readAsText(_file: File) {
+        setTimeout(() => this.onerror?.(), 0);
+      },
+    };
+    vi.stubGlobal('FileReader', vi.fn(() => reader));
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    setupFileDrop(onFile);
+
+    const file = makeFakeFile('bad data');
+    const event = new Event('drop', { bubbles: true, cancelable: true }) as DragEvent;
+    Object.defineProperty(event, 'dataTransfer', { value: { files: [file] } });
+    document.body.dispatchEvent(event);
+
+    await new Promise((r) => setTimeout(r, 10));
+    expect(onFile).not.toHaveBeenCalled();
+    expect(consoleError).toHaveBeenCalled();
+    consoleError.mockRestore();
+  });
+
+  it('does not call onFile when FileReader errors on input change', async () => {
+    const fakeError = new DOMException('read error');
+    const reader = {
+      onload: null as (() => void) | null,
+      onerror: null as (() => void) | null,
+      result: '' as string,
+      error: fakeError,
+      readAsText(_file: File) {
+        setTimeout(() => this.onerror?.(), 0);
+      },
+    };
+    vi.stubGlobal('FileReader', vi.fn(() => reader));
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    setupFileDrop(onFile);
+
+    const input = document.getElementById('file-input') as HTMLInputElement;
+    Object.defineProperty(input, 'files', {
+      value: [makeFakeFile('bad data')],
+      configurable: true,
+    });
+    input.dispatchEvent(new Event('change'));
+
+    await new Promise((r) => setTimeout(r, 10));
+    expect(onFile).not.toHaveBeenCalled();
+    expect(consoleError).toHaveBeenCalled();
+    consoleError.mockRestore();
   });
 });

@@ -1,4 +1,4 @@
-import type { Line } from 'three';
+import type { Line, Material } from 'three';
 import { initScene } from './render/scene.js';
 import { buildToolpathLine } from './render/toolpath.js';
 import { setupFileDrop } from './ui/file-drop.js';
@@ -14,13 +14,19 @@ const sceneHandle = initScene(canvas, DEFAULT_CONFIG.table_width_mm, DEFAULT_CON
 let currentLine: Line | null = null;
 
 setupFileDrop(async (text: string) => {
-  const output = await parseGcode(text, DEFAULT_CONFIG);
-  if (currentLine !== null) {
-    sceneHandle.removeLine(currentLine);
+  try {
+    const output = await parseGcode(text, DEFAULT_CONFIG);
+    if (currentLine !== null) {
+      sceneHandle.removeLine(currentLine);
+      currentLine.geometry.dispose();
+      (currentLine.material as Material).dispose();
+    }
+    currentLine = buildToolpathLine(output.moves, DEFAULT_CONFIG.ball_radius_mm);
+    sceneHandle.addLine(currentLine);
+    renderWarnings(warningsEl, output.warnings);
+  } catch (err) {
+    console.error('Failed to parse gcode:', err);
   }
-  currentLine = buildToolpathLine(output.moves, DEFAULT_CONFIG.ball_radius_mm);
-  sceneHandle.addLine(currentLine);
-  renderWarnings(warningsEl, output.warnings);
 });
 
 renderWarnings(warningsEl, []);
