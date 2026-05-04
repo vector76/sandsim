@@ -3,9 +3,56 @@ import * as THREE from 'three';
 export interface SandMeshHandle {
   mesh: THREE.Mesh;
   texture: THREE.DataTexture;
+  material: THREE.ShaderMaterial;
   nx: number;
   ny: number;
 }
+
+const VERTEX_SHADER = /* glsl */ `
+  uniform sampler2D uHeightmap;
+  uniform vec2 uTexel;
+  uniform vec2 uTableSize;
+
+  varying vec2 vWorldXY;
+  varying vec3 vNormal;
+
+  void main() {
+    vec2 uv = position.xy / uTableSize;
+    float h = texture2D(uHeightmap, uv).r;
+
+    float hL = texture2D(uHeightmap, uv - vec2(uTexel.x, 0.0)).r;
+    float hR = texture2D(uHeightmap, uv + vec2(uTexel.x, 0.0)).r;
+    float hD = texture2D(uHeightmap, uv - vec2(0.0, uTexel.y)).r;
+    float hU = texture2D(uHeightmap, uv + vec2(0.0, uTexel.y)).r;
+
+    float dx = uTableSize.x * uTexel.x;
+    float dy = uTableSize.y * uTexel.y;
+    vec3 n = normalize(vec3(-(hR - hL) / (2.0 * dx), -(hU - hD) / (2.0 * dy), 1.0));
+
+    vec3 displaced = vec3(position.x, position.y, h);
+    vec4 worldPos = modelMatrix * vec4(displaced, 1.0);
+    vWorldXY = worldPos.xy;
+    vNormal = n;
+    gl_Position = projectionMatrix * viewMatrix * worldPos;
+  }
+`;
+
+const FRAGMENT_SHADER = /* glsl */ `
+  uniform vec3 uLightDir;
+  uniform vec3 uLightColor;
+  uniform vec3 uAmbient;
+
+  varying vec2 vWorldXY;
+  varying vec3 vNormal;
+
+  void main() {
+    vec3 n = normalize(vNormal);
+    float diff = max(dot(n, normalize(uLightDir)), 0.0);
+    vec3 lit = diff * uLightColor + uAmbient;
+    vec3 base = vec3(0.76, 0.66, 0.48);
+    gl_FragColor = vec4(base * lit, 1.0);
+  }
+`;
 
 export function createSandMesh(nx: number, ny: number, tableW: number, tableH: number): SandMeshHandle {
   const geo = new THREE.PlaneGeometry(tableW, tableH, nx - 1, ny - 1);
@@ -19,10 +66,22 @@ export function createSandMesh(nx: number, ny: number, tableW: number, tableH: n
   texture.minFilter = THREE.LinearFilter;
   texture.needsUpdate = true;
 
-  const mat = new THREE.MeshLambertMaterial({ color: 0xc2a97a });
-  const mesh = new THREE.Mesh(geo, mat);
+  const material = new THREE.ShaderMaterial({
+    uniforms: {
+      uHeightmap: { value: texture },
+      uTexel: { value: new THREE.Vector2(1 / nx, 1 / ny) },
+      uTableSize: { value: new THREE.Vector2(tableW, tableH) },
+      uLightDir: { value: new THREE.Vector3(0, 0, 1) },
+      uLightColor: { value: new THREE.Color(1, 1, 1) },
+      uAmbient: { value: new THREE.Color(0.2, 0.2, 0.2) },
+    },
+    vertexShader: VERTEX_SHADER,
+    fragmentShader: FRAGMENT_SHADER,
+  });
 
-  return { mesh, texture, nx, ny };
+  const mesh = new THREE.Mesh(geo, material);
+
+  return { mesh, texture, material, nx, ny };
 }
 
 export function updateSandMesh(handle: SandMeshHandle, heightmap: Float32Array): void {

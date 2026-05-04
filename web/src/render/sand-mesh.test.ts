@@ -31,6 +31,34 @@ describe('createSandMesh', () => {
     expect(handle.texture.wrapS).toBe(THREE.ClampToEdgeWrapping);
     expect(handle.texture.wrapT).toBe(THREE.ClampToEdgeWrapping);
   });
+
+  it('uses a ShaderMaterial with the documented uniforms wired to the heightmap texture and table dims', () => {
+    const handle = createSandMesh(8, 4, 200, 100);
+    expect(handle.material).toBeInstanceOf(THREE.ShaderMaterial);
+    expect(handle.mesh.material).toBe(handle.material);
+
+    const u = handle.material.uniforms;
+    expect(u.uHeightmap.value).toBe(handle.texture);
+
+    const texel = u.uTexel.value as THREE.Vector2;
+    expect(texel.x).toBeCloseTo(1 / 8);
+    expect(texel.y).toBeCloseTo(1 / 4);
+
+    const tableSize = u.uTableSize.value as THREE.Vector2;
+    expect(tableSize.x).toBeCloseTo(200);
+    expect(tableSize.y).toBeCloseTo(100);
+
+    expect(u.uLightDir).toBeDefined();
+    expect(u.uLightColor).toBeDefined();
+    expect(u.uAmbient).toBeDefined();
+  });
+
+  it('shader sources reference heightmap sampling and the sand base colour', () => {
+    const handle = createSandMesh(3, 3, 10, 10);
+    expect(handle.material.vertexShader).toContain('uHeightmap');
+    expect(handle.material.vertexShader).toContain('texture2D');
+    expect(handle.material.fragmentShader).toContain('vec3(0.76, 0.66, 0.48)');
+  });
 });
 
 describe('updateSandMesh', () => {
