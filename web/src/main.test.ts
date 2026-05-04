@@ -24,9 +24,25 @@ const {
     addObject: mockAddObject,
     removeObject: vi.fn(),
     renderer: mockRenderer,
+    lighting: {
+      dirLight: {},
+      ambientLight: {},
+      uniforms: {
+        uLightDir: { value: {} },
+        uLightColor: { value: {} },
+        uAmbient: { value: {} },
+      },
+      setAzimuth: vi.fn(),
+      setAltitude: vi.fn(),
+      setBalance: vi.fn(),
+    },
     dispose: vi.fn(),
   }));
-  const mockCreateSandMesh = vi.fn(() => ({ __kind: 'sand', mesh: { __kind: 'sandMesh' } }));
+  const mockCreateSandMesh = vi.fn(() => ({
+    __kind: 'sand',
+    mesh: { __kind: 'sandMesh' },
+    material: { uniforms: {} },
+  }));
   const mockUpdateSandMesh = vi.fn();
   const mockCheckFloatTextureSupport = vi.fn(() => true);
   const mockCreateBallMesh = vi.fn(() => ({ __kind: 'ball' }));
@@ -235,7 +251,8 @@ describe('main bootstrap', () => {
 
     expect(mockUpdateSandMesh).toHaveBeenCalledTimes(1);
     const updateCall = mockUpdateSandMesh.mock.calls[0];
-    expect(updateCall[0]).toEqual({ __kind: 'sand', mesh: { __kind: 'sandMesh' } });
+    expect((updateCall[0] as { __kind: string }).__kind).toBe('sand');
+    expect((updateCall[0] as { mesh: unknown }).mesh).toEqual({ __kind: 'sandMesh' });
     expect(updateCall[1]).toBeInstanceOf(Float32Array);
     expect((updateCall[1] as Float32Array).buffer).toBe(buf);
     expect(updateCall.length).toBe(2);

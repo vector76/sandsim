@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { createLighting, type LightingHandle } from './lighting.js';
 
 export interface SceneHandle {
   addLine(line: THREE.Line): void;
@@ -7,6 +8,7 @@ export interface SceneHandle {
   addObject(obj: THREE.Object3D): void;
   removeObject(obj: THREE.Object3D): void;
   renderer: THREE.WebGLRenderer;
+  lighting: LightingHandle;
   dispose(): void;
 }
 
@@ -28,12 +30,9 @@ export function initScene(canvas: HTMLCanvasElement, tableW: number, tableH: num
   controls.target.set(tableW / 2, tableH / 2, 0);
   controls.update();
 
-  const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-  dirLight.position.set(tableW, tableH, tableH);
-  scene.add(dirLight);
-
-  const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
-  scene.add(ambientLight);
+  const lighting = createLighting();
+  scene.add(lighting.dirLight);
+  scene.add(lighting.ambientLight);
 
   const tableMesh = new THREE.Mesh(
     new THREE.PlaneGeometry(tableW, tableH),
@@ -72,6 +71,7 @@ export function initScene(canvas: HTMLCanvasElement, tableW: number, tableH: num
       scene.remove(obj);
     },
     renderer,
+    lighting,
     dispose(): void {
       window.removeEventListener('resize', onResize);
     },
