@@ -1,11 +1,13 @@
 import { initScene } from './render/scene.js';
 import { setupFileDrop } from './ui/file-drop.js';
 import { renderWarnings } from './ui/warnings.js';
-import type { Warning } from './types.js';
-import { createSandMesh, updateSandMesh, checkFloatTextureSupport } from './render/sand-mesh.js';
+import { setupControls } from './ui/controls.js';
+import type { Warning, SimConfig } from './types.js';
+import { createSandMesh, updateSandMesh, checkFloatTextureSupport, type SandMeshHandle } from './render/sand-mesh.js';
 import { createBallMesh, updateBallMesh } from './render/ball.js';
 import { DEFAULT_SIM_CONFIG } from './types.js';
 import type { WorkerMessage, MainMessage } from './sim-protocol.js';
+import type * as THREE from 'three';
 
 const canvas = document.getElementById('canvas') as HTMLCanvasElement;
 const warningsEl = document.getElementById('warnings') as HTMLElement;
@@ -39,24 +41,27 @@ function dbg(s: string): void {
 }
 dbg('main.ts loaded');
 
-const cfg = DEFAULT_SIM_CONFIG;
-const nx = Math.ceil(cfg.table_width_mm / cfg.cell_mm);
-const ny = Math.ceil(cfg.table_height_mm / cfg.cell_mm);
+let cfg: SimConfig = { ...DEFAULT_SIM_CONFIG };
+let nx = Math.ceil(cfg.table_width_mm / cfg.cell_mm);
+let ny = Math.ceil(cfg.table_height_mm / cfg.cell_mm);
 
 const sceneHandle = initScene(canvas, cfg.table_width_mm, cfg.table_height_mm);
 checkFloatTextureSupport(sceneHandle.renderer);
-const sandHandle = createSandMesh(nx, ny, cfg.table_width_mm, cfg.table_height_mm);
+
+let sandHandle: SandMeshHandle = createSandMesh(nx, ny, cfg.table_width_mm, cfg.table_height_mm);
 sandHandle.material.uniforms.uLightDir = sceneHandle.lighting.uniforms.uLightDir;
 sandHandle.material.uniforms.uLightColor = sceneHandle.lighting.uniforms.uLightColor;
 sandHandle.material.uniforms.uAmbient = sceneHandle.lighting.uniforms.uAmbient;
 sceneHandle.addObject(sandHandle.mesh);
-const ballMesh = createBallMesh(cfg.ball_radius_mm);
+
+let ballMesh: THREE.Mesh = createBallMesh(cfg.ball_radius_mm);
 sceneHandle.addObject(ballMesh);
 
 let workerReady = false;
 let pendingLoad: { gcode: string; mode: 'reset' | 'append' } | null = null;
 let lastLoadMode: 'reset' | 'append' = 'reset';
 let accumulatedWarnings: Warning[] = [];
+let lastGcode: string | null = null;
 
 const worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' });
 worker.onerror = (e) => dbg('WORKER ERROR: ' + (e.message || e));
@@ -73,6 +78,7 @@ worker.onmessage = (evt: MessageEvent<WorkerMessage>) => {
       dbg('sent config');
       if (pendingLoad !== null) {
         lastLoadMode = pendingLoad.mode;
+        lastGcode = pendingLoad.gcode;
         worker.postMessage({ type: 'load', gcode: pendingLoad.gcode, mode: pendingLoad.mode } as MainMessage);
         dbg('sent pending load');
         pendingLoad = null;
@@ -89,6 +95,10 @@ worker.onmessage = (evt: MessageEvent<WorkerMessage>) => {
       frameCount++;
       if (frameCount <= 3 || frameCount % 60 === 0) {
         dbg(`frame #${frameCount} ball=(${msg.ballPos.x.toFixed(1)},${msg.ballPos.y.toFixed(1)}) t=${msg.simTime.toFixed(2)}`);
+      }
+      if (msg.nx !== nx || msg.ny !== ny) {
+        // Stale frame from a previous config; worker has already reallocated, so let GC reclaim it.
+        break;
       }
       const view = new Float32Array(msg.buf);
       updateSandMesh(sandHandle, view);
@@ -109,10 +119,59 @@ worker.onmessage = (evt: MessageEvent<WorkerMessage>) => {
 
 setupFileDrop((text: string, mode: 'reset' | 'append') => {
   dbg(`file received (${text.length} chars), mode=${mode}, workerReady=${workerReady}`);
+  lastGcode = text;
   if (!workerReady) { pendingLoad = { gcode: text, mode }; return; }
   lastLoadMode = mode;
   worker.postMessage({ type: 'load', gcode: text, mode } as MainMessage);
   dbg('sent load to worker');
+});
+
+setupControls({
+  initial: cfg,
+  onApply: (newCfg: SimConfig) => {
+    dbg('controls apply');
+    const oldRadius = cfg.ball_radius_mm;
+    cfg = newCfg;
+    nx = Math.ceil(cfg.table_width_mm / cfg.cell_mm);
+    ny = Math.ceil(cfg.table_height_mm / cfg.cell_mm);
+
+    sceneHandle.removeObject(sandHandle.mesh);
+    sandHandle.mesh.geometry.dispose();
+    sandHandle.material.dispose();
+    sandHandle.texture.dispose();
+    sandHandle.noiseTexture.dispose();
+    sandHandle = createSandMesh(nx, ny, cfg.table_width_mm, cfg.table_height_mm);
+    sandHandle.material.uniforms.uLightDir = sceneHandle.lighting.uniforms.uLightDir;
+    sandHandle.material.uniforms.uLightColor = sceneHandle.lighting.uniforms.uLightColor;
+    sandHandle.material.uniforms.uAmbient = sceneHandle.lighting.uniforms.uAmbient;
+    sceneHandle.addObject(sandHandle.mesh);
+
+    if (cfg.ball_radius_mm !== oldRadius) {
+      sceneHandle.removeObject(ballMesh);
+      ballMesh.geometry.dispose();
+      (ballMesh.material as THREE.Material).dispose();
+      ballMesh = createBallMesh(cfg.ball_radius_mm);
+      sceneHandle.addObject(ballMesh);
+    }
+
+    if (!workerReady) {
+      // 'ready' handler will post the current cfg (and pendingLoad if any) once init completes.
+      return;
+    }
+
+    worker.postMessage({ type: 'config', config: cfg } as MainMessage);
+
+    if (lastGcode !== null) {
+      lastLoadMode = 'reset';
+      worker.postMessage({ type: 'load', gcode: lastGcode, mode: 'reset' } as MainMessage);
+      dbg('re-sent last gcode after reconfig');
+    }
+  },
+  onLighting: {
+    setAzimuth: sceneHandle.lighting.setAzimuth,
+    setAltitude: sceneHandle.lighting.setAltitude,
+    setBalance: sceneHandle.lighting.setBalance,
+  },
 });
 
 renderWarnings(warningsEl, []);

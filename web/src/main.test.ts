@@ -4,6 +4,7 @@ import { DEFAULT_SIM_CONFIG } from './types.js';
 
 const {
   mockAddObject,
+  mockRemoveObject,
   mockInitScene,
   mockCreateSandMesh,
   mockUpdateSandMesh,
@@ -11,9 +12,11 @@ const {
   mockCreateBallMesh,
   mockUpdateBallMesh,
   mockSetupFileDrop,
+  mockSetupControls,
   mockRenderWarnings,
 } = vi.hoisted(() => {
   const mockAddObject = vi.fn();
+  const mockRemoveObject = vi.fn();
   const mockRenderer = {
     capabilities: { isWebGL2: true },
     getContext: () => ({ getExtension: () => ({}) }),
@@ -22,7 +25,7 @@ const {
     addLine: vi.fn(),
     removeLine: vi.fn(),
     addObject: mockAddObject,
-    removeObject: vi.fn(),
+    removeObject: mockRemoveObject,
     renderer: mockRenderer,
     lighting: {
       dirLight: {},
@@ -38,19 +41,37 @@ const {
     },
     dispose: vi.fn(),
   }));
-  const mockCreateSandMesh = vi.fn(() => ({
-    __kind: 'sand',
-    mesh: { __kind: 'sandMesh' },
-    material: { uniforms: {} },
-  }));
+  let sandCounter = 0;
+  const mockCreateSandMesh = vi.fn(() => {
+    sandCounter += 1;
+    return {
+      __kind: 'sand',
+      __id: sandCounter,
+      mesh: { __kind: 'sandMesh', __id: sandCounter, geometry: { dispose: vi.fn() } },
+      material: { uniforms: {}, dispose: vi.fn() },
+      texture: { dispose: vi.fn() },
+      noiseTexture: { dispose: vi.fn() },
+    };
+  });
   const mockUpdateSandMesh = vi.fn();
   const mockCheckFloatTextureSupport = vi.fn(() => true);
-  const mockCreateBallMesh = vi.fn(() => ({ __kind: 'ball' }));
+  let ballCounter = 0;
+  const mockCreateBallMesh = vi.fn(() => {
+    ballCounter += 1;
+    return {
+      __kind: 'ball',
+      __id: ballCounter,
+      geometry: { dispose: vi.fn() },
+      material: { dispose: vi.fn() },
+    };
+  });
   const mockUpdateBallMesh = vi.fn();
   const mockSetupFileDrop = vi.fn();
+  const mockSetupControls = vi.fn();
   const mockRenderWarnings = vi.fn();
   return {
     mockAddObject,
+    mockRemoveObject,
     mockInitScene,
     mockCreateSandMesh,
     mockUpdateSandMesh,
@@ -58,6 +79,7 @@ const {
     mockCreateBallMesh,
     mockUpdateBallMesh,
     mockSetupFileDrop,
+    mockSetupControls,
     mockRenderWarnings,
   };
 });
@@ -73,6 +95,7 @@ vi.mock('./render/ball.js', () => ({
   updateBallMesh: mockUpdateBallMesh,
 }));
 vi.mock('./ui/file-drop.js', () => ({ setupFileDrop: mockSetupFileDrop }));
+vi.mock('./ui/controls.js', () => ({ setupControls: mockSetupControls }));
 vi.mock('./ui/warnings.js', () => ({ renderWarnings: mockRenderWarnings }));
 
 class FakeWorker {
@@ -135,8 +158,8 @@ describe('main bootstrap', () => {
     );
     expect(mockCreateBallMesh).toHaveBeenCalledWith(DEFAULT_SIM_CONFIG.ball_radius_mm);
     expect(mockAddObject).toHaveBeenCalledTimes(2);
-    expect(mockAddObject).toHaveBeenCalledWith({ __kind: 'sandMesh' });
-    expect(mockAddObject).toHaveBeenCalledWith({ __kind: 'ball' });
+    expect(mockAddObject).toHaveBeenCalledWith(expect.objectContaining({ __kind: 'sandMesh' }));
+    expect(mockAddObject).toHaveBeenCalledWith(expect.objectContaining({ __kind: 'ball' }));
   });
 
   it('runs the float-texture capability check against the scene renderer', async () => {
@@ -252,13 +275,13 @@ describe('main bootstrap', () => {
     expect(mockUpdateSandMesh).toHaveBeenCalledTimes(1);
     const updateCall = mockUpdateSandMesh.mock.calls[0];
     expect((updateCall[0] as { __kind: string }).__kind).toBe('sand');
-    expect((updateCall[0] as { mesh: unknown }).mesh).toEqual({ __kind: 'sandMesh' });
+    expect((updateCall[0] as { mesh: { __kind: string } }).mesh.__kind).toBe('sandMesh');
     expect(updateCall[1]).toBeInstanceOf(Float32Array);
     expect((updateCall[1] as Float32Array).buffer).toBe(buf);
     expect(updateCall.length).toBe(2);
 
     expect(mockUpdateBallMesh).toHaveBeenCalledWith(
-      { __kind: 'ball' },
+      expect.objectContaining({ __kind: 'ball' }),
       12,
       34,
       DEFAULT_SIM_CONFIG.ball_radius_mm,
@@ -357,5 +380,199 @@ describe('main bootstrap', () => {
       document.getElementById('warnings'),
       fresh,
     );
+  });
+
+  it('drops a stale frame whose nx/ny do not match current config', async () => {
+    await import('./main.js');
+    const worker = FakeWorker.lastInstance!;
+    worker.emit({ type: 'ready' });
+    worker.postMessage.mockClear();
+    mockUpdateSandMesh.mockClear();
+    mockUpdateBallMesh.mockClear();
+
+    const stale = new ArrayBuffer(16);
+    worker.emit({
+      type: 'frame',
+      buf: stale,
+      nx: 1,
+      ny: 1,
+      ballPos: { x: 0, y: 0 },
+      simTime: 0,
+    });
+
+    expect(mockUpdateSandMesh).not.toHaveBeenCalled();
+    expect(mockUpdateBallMesh).not.toHaveBeenCalled();
+    expect(worker.postMessage).not.toHaveBeenCalled();
+  });
+
+  it('Apply posts a new config and rebuilds the sand mesh', async () => {
+    await import('./main.js');
+    const worker = FakeWorker.lastInstance!;
+    worker.emit({ type: 'ready' });
+    worker.postMessage.mockClear();
+    mockRemoveObject.mockClear();
+    mockAddObject.mockClear();
+    mockCreateSandMesh.mockClear();
+
+    const onApply = mockSetupControls.mock.calls[0][0].onApply as (cfg: typeof DEFAULT_SIM_CONFIG) => void;
+    const newCfg = { ...DEFAULT_SIM_CONFIG, cell_mm: 1.0 };
+    onApply(newCfg);
+
+    expect(worker.postMessage).toHaveBeenCalledWith({ type: 'config', config: newCfg });
+    expect(mockRemoveObject).toHaveBeenCalledTimes(1);
+    expect(mockCreateSandMesh).toHaveBeenCalledTimes(1);
+    const newNx = Math.ceil(newCfg.table_width_mm / newCfg.cell_mm);
+    const newNy = Math.ceil(newCfg.table_height_mm / newCfg.cell_mm);
+    expect(mockCreateSandMesh).toHaveBeenCalledWith(
+      newNx, newNy, newCfg.table_width_mm, newCfg.table_height_mm,
+    );
+    expect(mockAddObject).toHaveBeenCalledTimes(1);
+  });
+
+  it('Apply disposes the old sand mesh GPU resources', async () => {
+    await import('./main.js');
+    const worker = FakeWorker.lastInstance!;
+    worker.emit({ type: 'ready' });
+
+    const oldSand = mockCreateSandMesh.mock.results[0].value as {
+      mesh: { geometry: { dispose: ReturnType<typeof vi.fn> } };
+      material: { dispose: ReturnType<typeof vi.fn> };
+      texture: { dispose: ReturnType<typeof vi.fn> };
+      noiseTexture: { dispose: ReturnType<typeof vi.fn> };
+    };
+
+    const onApply = mockSetupControls.mock.calls[0][0].onApply as (cfg: typeof DEFAULT_SIM_CONFIG) => void;
+    onApply({ ...DEFAULT_SIM_CONFIG, cell_mm: 1.0 });
+
+    expect(oldSand.mesh.geometry.dispose).toHaveBeenCalledTimes(1);
+    expect(oldSand.material.dispose).toHaveBeenCalledTimes(1);
+    expect(oldSand.texture.dispose).toHaveBeenCalledTimes(1);
+    expect(oldSand.noiseTexture.dispose).toHaveBeenCalledTimes(1);
+  });
+
+  it('Apply disposes the old ball mesh when radius changes', async () => {
+    await import('./main.js');
+    const worker = FakeWorker.lastInstance!;
+    worker.emit({ type: 'ready' });
+
+    const oldBall = mockCreateBallMesh.mock.results[0].value as {
+      geometry: { dispose: ReturnType<typeof vi.fn> };
+      material: { dispose: ReturnType<typeof vi.fn> };
+    };
+
+    const onApply = mockSetupControls.mock.calls[0][0].onApply as (cfg: typeof DEFAULT_SIM_CONFIG) => void;
+
+    onApply({ ...DEFAULT_SIM_CONFIG, h0_mm: DEFAULT_SIM_CONFIG.h0_mm + 1 });
+    expect(oldBall.geometry.dispose).not.toHaveBeenCalled();
+    expect(oldBall.material.dispose).not.toHaveBeenCalled();
+
+    onApply({ ...DEFAULT_SIM_CONFIG, ball_radius_mm: DEFAULT_SIM_CONFIG.ball_radius_mm + 1 });
+    expect(oldBall.geometry.dispose).toHaveBeenCalledTimes(1);
+    expect(oldBall.material.dispose).toHaveBeenCalledTimes(1);
+  });
+
+  it('Apply re-creates the ball mesh only when ball_radius_mm changes', async () => {
+    await import('./main.js');
+    const worker = FakeWorker.lastInstance!;
+    worker.emit({ type: 'ready' });
+    mockCreateBallMesh.mockClear();
+    mockRemoveObject.mockClear();
+
+    const onApply = mockSetupControls.mock.calls[0][0].onApply as (cfg: typeof DEFAULT_SIM_CONFIG) => void;
+
+    onApply({ ...DEFAULT_SIM_CONFIG, h0_mm: DEFAULT_SIM_CONFIG.h0_mm + 1 });
+    expect(mockCreateBallMesh).not.toHaveBeenCalled();
+
+    onApply({ ...DEFAULT_SIM_CONFIG, ball_radius_mm: DEFAULT_SIM_CONFIG.ball_radius_mm + 1 });
+    expect(mockCreateBallMesh).toHaveBeenCalledTimes(1);
+    expect(mockCreateBallMesh).toHaveBeenCalledWith(DEFAULT_SIM_CONFIG.ball_radius_mm + 1);
+  });
+
+  it('Apply re-issues the cached gcode as a reset load', async () => {
+    await import('./main.js');
+    const worker = FakeWorker.lastInstance!;
+    worker.emit({ type: 'ready' });
+
+    const fileCallback = mockSetupFileDrop.mock.calls[0][0] as (
+      text: string,
+      mode: 'reset' | 'append',
+    ) => void;
+    fileCallback('G0 X5', 'reset');
+    worker.postMessage.mockClear();
+
+    const onApply = mockSetupControls.mock.calls[0][0].onApply as (cfg: typeof DEFAULT_SIM_CONFIG) => void;
+    onApply({ ...DEFAULT_SIM_CONFIG, cell_mm: 1.0 });
+
+    expect(worker.postMessage).toHaveBeenCalledWith({
+      type: 'load',
+      gcode: 'G0 X5',
+      mode: 'reset',
+    });
+  });
+
+  it('Apply does not issue a load when no gcode has been loaded', async () => {
+    await import('./main.js');
+    const worker = FakeWorker.lastInstance!;
+    worker.emit({ type: 'ready' });
+    worker.postMessage.mockClear();
+
+    const onApply = mockSetupControls.mock.calls[0][0].onApply as (cfg: typeof DEFAULT_SIM_CONFIG) => void;
+    onApply({ ...DEFAULT_SIM_CONFIG, cell_mm: 1.0 });
+
+    const loadCalls = worker.postMessage.mock.calls.filter(
+      (c) => (c[0] as { type: string }).type === 'load',
+    );
+    expect(loadCalls).toHaveLength(0);
+  });
+
+  it('Apply before worker ready does not post to worker but does rebuild local meshes', async () => {
+    await import('./main.js');
+    const worker = FakeWorker.lastInstance!;
+    // Do NOT emit ready.
+    worker.postMessage.mockClear();
+    mockCreateSandMesh.mockClear();
+    mockRemoveObject.mockClear();
+    mockAddObject.mockClear();
+
+    const onApply = mockSetupControls.mock.calls[0][0].onApply as (cfg: typeof DEFAULT_SIM_CONFIG) => void;
+    const newCfg = { ...DEFAULT_SIM_CONFIG, cell_mm: 1.0 };
+    onApply(newCfg);
+
+    expect(worker.postMessage).not.toHaveBeenCalled();
+    expect(mockCreateSandMesh).toHaveBeenCalledTimes(1);
+    expect(mockRemoveObject).toHaveBeenCalledTimes(1);
+    expect(mockAddObject).toHaveBeenCalledTimes(1);
+
+    // Once ready fires, the new cfg is what gets posted.
+    worker.emit({ type: 'ready' });
+    expect(worker.postMessage).toHaveBeenCalledWith({ type: 'config', config: newCfg });
+  });
+
+  it('frame after Apply uses the new (nx, ny) and is processed', async () => {
+    await import('./main.js');
+    const worker = FakeWorker.lastInstance!;
+    worker.emit({ type: 'ready' });
+
+    const onApply = mockSetupControls.mock.calls[0][0].onApply as (cfg: typeof DEFAULT_SIM_CONFIG) => void;
+    const newCfg = { ...DEFAULT_SIM_CONFIG, cell_mm: 1.0 };
+    onApply(newCfg);
+
+    mockUpdateSandMesh.mockClear();
+    worker.postMessage.mockClear();
+
+    const newNx = Math.ceil(newCfg.table_width_mm / newCfg.cell_mm);
+    const newNy = Math.ceil(newCfg.table_height_mm / newCfg.cell_mm);
+    const buf = new ArrayBuffer(newNx * newNy * 4);
+    worker.emit({
+      type: 'frame',
+      buf,
+      nx: newNx,
+      ny: newNy,
+      ballPos: { x: 1, y: 2 },
+      simTime: 1,
+    });
+
+    expect(mockUpdateSandMesh).toHaveBeenCalledTimes(1);
+    expect(worker.postMessage).toHaveBeenCalledWith({ type: 'release', buf }, [buf]);
   });
 });

@@ -10,6 +10,7 @@
       #warnings { position: fixed; top: 8px; left: 8px; z-index: 10; }
       #file-controls { position: fixed; top: 8px; right: 8px; z-index: 10; display: flex; gap: 6px; align-items: center; }
       #file-mode { background: #222; color: #eee; border: 1px solid #444; }
+      #controls { position: fixed; top: 40px; right: 8px; z-index: 10; background: rgba(0,0,0,0.6); padding: 8px; min-width: 240px; color: #eee; font-family: sans-serif; }
     </style>
   </head>
   <body>
@@ -22,6 +23,7 @@
       </select>
       <input type="file" id="file-input" accept=".gcode,.nc,.txt,.cnc" />
     </div>
+    <div id="controls"></div>
     <script type="module" src="./src/main.ts"></script>
   </body>
 </html>
