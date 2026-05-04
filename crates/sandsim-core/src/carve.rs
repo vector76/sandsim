@@ -162,21 +162,20 @@ pub fn carve_segmented(
             }
         }
 
-        // 3. Overflow pass — equal share over spill[s].
+        // 3. Overflow pass — equal share over spill[s]. Divisor is the
+        //    full spill count so off-grid cells carry their share past
+        //    the table edge instead of inflating in-bounds cells.
         if v_seg > 0.0 {
             let spill = &footprint.spill_by_segment[s];
-            let mut in_bounds: Vec<(usize, usize)> = Vec::with_capacity(spill.len());
-            for &(di, dj) in spill {
-                let i = bi + di;
-                let j = bj + dj;
-                if i < 0 || j < 0 || i >= nx || j >= ny {
-                    continue;
-                }
-                in_bounds.push((i as usize, j as usize));
-            }
-            if !in_bounds.is_empty() {
-                let dh = v_seg / (in_bounds.len() as f64 * cell_area);
-                for (i, j) in in_bounds {
+            if !spill.is_empty() {
+                let dh = v_seg / (spill.len() as f64 * cell_area);
+                for &(di, dj) in spill {
+                    let i = bi + di;
+                    let j = bj + dj;
+                    if i < 0 || j < 0 || i >= nx || j >= ny {
+                        continue;
+                    }
+                    let (i, j) = (i as usize, j as usize);
                     let current = hmap.get(i, j);
                     hmap.set(i, j, current + dh as f32);
                     touched.insert((i, j));
@@ -530,6 +529,92 @@ mod tests {
             "volume not conserved: initial={initial_vol:.6}, final={final_vol:.6}, \
              diff={:.6}, tol={tol:.6}",
             final_vol - initial_vol
+        );
+    }
+
+    #[test]
+    fn kernel_does_not_panic_near_wall() {
+        let cell_mm = 0.5_f32;
+        let h0 = 5.0_f32;
+        let r_mm = 3.0_f32;
+        // Small grid where (0.5, 0.5) sits in the corner so most of
+        // the footprint extends past the heightmap on both axes.
+        let mut hmap = Heightmap::new(5.0, 5.0, cell_mm, h0);
+        let fp = Footprint::new(r_mm, cell_mm, 8);
+        // Just completing the call without panicking is the contract.
+        carve_segmented(&mut hmap, &fp, 0.5, 0.5);
+    }
+
+    #[test]
+    fn clipped_footprint_volume_balance() {
+        let cell_mm = 0.5_f32;
+        let h0 = 5.0_f32;
+        let r_mm = 3.0_f32;
+        let mut hmap = Heightmap::new(10.0, 10.0, cell_mm, h0);
+        let fp = Footprint::new(r_mm, cell_mm, 8);
+
+        // Place the ball close to the left wall so part of the
+        // footprint and spill ring fall off-grid.
+        let cx = 1.25_f32;
+        let cy = 5.25_f32;
+        let (bi_u, bj_u) = hmap.world_to_cell(cx, cy);
+        let bi = bi_u as i32;
+        let bj = bj_u as i32;
+        let nx = hmap.nx() as i32;
+        let ny = hmap.ny() as i32;
+
+        // Uniform input: carve removes (h0 - z_u) * cell_area per
+        // in-bounds inner cell; deposit finds no room; everything
+        // overflows to spill. Of that overflow, the off-grid fraction
+        // of each segment's spill ring is lost.
+        let cell_area = (cell_mm as f64).powi(2);
+        let mut expected_loss = 0.0_f64;
+        for s in 0..fp.n_segments {
+            let mut v_seg = 0.0_f64;
+            for &idx in &fp.inner_by_segment[s] {
+                let (di, dj) = fp.inner_offsets[idx];
+                let i = bi + di;
+                let j = bj + dj;
+                if i < 0 || j < 0 || i >= nx || j >= ny {
+                    continue;
+                }
+                let z_u = r_mm + fp.z_under[idx];
+                if h0 > z_u {
+                    v_seg += (h0 - z_u) as f64 * cell_area;
+                }
+            }
+            let spill = &fp.spill_by_segment[s];
+            let total = spill.len();
+            if total == 0 || v_seg <= 0.0 {
+                continue;
+            }
+            let mut off_grid = 0usize;
+            for &(di, dj) in spill {
+                let i = bi + di;
+                let j = bj + dj;
+                if i < 0 || j < 0 || i >= nx || j >= ny {
+                    off_grid += 1;
+                }
+            }
+            expected_loss += v_seg * (off_grid as f64 / total as f64);
+        }
+
+        assert!(
+            expected_loss > 0.0,
+            "test setup did not produce any off-grid spill"
+        );
+
+        let initial_vol = total_volume(&hmap);
+        carve_segmented(&mut hmap, &fp, cx, cy);
+        let final_vol = total_volume(&hmap);
+        let actual_loss = initial_vol - final_vol;
+
+        let tol = 1e-3 * initial_vol;
+        assert!(
+            (actual_loss - expected_loss).abs() < tol,
+            "clipped volume balance off: expected_loss={expected_loss:.6}, \
+             actual_loss={actual_loss:.6}, diff={:.6}, tol={tol:.6}",
+            actual_loss - expected_loss
         );
     }
 
