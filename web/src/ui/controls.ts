@@ -19,6 +19,46 @@ interface FieldSpec {
   validate: (v: number) => string | null;
 }
 
+interface LightingSliderSpec {
+  key: 'azimuth' | 'altitude' | 'balance';
+  label: string;
+  min: number;
+  max: number;
+  step: number;
+  defaultValue: number;
+  apply: (lighting: LightingControls, v: number) => void;
+}
+
+const LIGHTING_SLIDERS: LightingSliderSpec[] = [
+  {
+    key: 'azimuth',
+    label: 'azimuth (deg)',
+    min: 0,
+    max: 360,
+    step: 1,
+    defaultValue: 135,
+    apply: (l, v) => l.setAzimuth(v),
+  },
+  {
+    key: 'altitude',
+    label: 'altitude (deg)',
+    min: 0,
+    max: 90,
+    step: 1,
+    defaultValue: 30,
+    apply: (l, v) => l.setAltitude(v),
+  },
+  {
+    key: 'balance',
+    label: 'balance',
+    min: 0,
+    max: 1,
+    step: 0.01,
+    defaultValue: 0.3,
+    apply: (l, v) => l.setBalance(v),
+  },
+];
+
 const FIELDS: FieldSpec[] = [
   { key: 'table_width_mm', label: 'table width (mm)', step: '1', validate: positive },
   { key: 'table_height_mm', label: 'table height (mm)', step: '1', validate: positive },
@@ -72,6 +112,42 @@ export function setupControls(opts: ControlsOptions): void {
     row.appendChild(label);
     container.appendChild(row);
     inputs.set(spec.key, input);
+  }
+
+  if (opts.onLighting) {
+    const lighting = opts.onLighting;
+    for (const spec of LIGHTING_SLIDERS) {
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:center;gap:6px;margin:2px 0;';
+
+      const label = document.createElement('label');
+      label.textContent = spec.label;
+      label.style.cssText = 'flex:1;font:12px sans-serif;';
+
+      const input = document.createElement('input');
+      input.type = 'range';
+      input.min = String(spec.min);
+      input.max = String(spec.max);
+      input.step = String(spec.step);
+      input.value = String(spec.defaultValue);
+      input.dataset.lightingKey = spec.key;
+      input.style.cssText = 'width:120px;';
+
+      const valueEl = document.createElement('span');
+      valueEl.textContent = String(spec.defaultValue);
+      valueEl.style.cssText = 'font:12px monospace;color:#ccc;min-width:3em;text-align:right;';
+
+      input.addEventListener('input', () => {
+        const v = Number(input.value);
+        valueEl.textContent = input.value;
+        spec.apply(lighting, v);
+      });
+
+      row.appendChild(label);
+      row.appendChild(input);
+      row.appendChild(valueEl);
+      container.appendChild(row);
+    }
   }
 
   const errorEl = document.createElement('div');

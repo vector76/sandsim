@@ -145,4 +145,59 @@ describe('setupControls', () => {
     expect(lighting.setAltitude).not.toHaveBeenCalled();
     expect(lighting.setBalance).not.toHaveBeenCalled();
   });
+
+  it('renders three lighting sliders with default values when onLighting is provided', () => {
+    const lighting = {
+      setAzimuth: vi.fn(),
+      setAltitude: vi.fn(),
+      setBalance: vi.fn(),
+    };
+    setupControls({ initial: DEFAULT_SIM_CONFIG, onApply: () => {}, onLighting: lighting });
+    const az = document.querySelector('input[data-lighting-key="azimuth"]') as HTMLInputElement;
+    const alt = document.querySelector('input[data-lighting-key="altitude"]') as HTMLInputElement;
+    const bal = document.querySelector('input[data-lighting-key="balance"]') as HTMLInputElement;
+    expect(az.type).toBe('range');
+    expect(az.min).toBe('0');
+    expect(az.max).toBe('360');
+    expect(az.value).toBe('135');
+    expect(alt.type).toBe('range');
+    expect(alt.min).toBe('0');
+    expect(alt.max).toBe('90');
+    expect(alt.value).toBe('30');
+    expect(bal.type).toBe('range');
+    expect(bal.min).toBe('0');
+    expect(bal.max).toBe('1');
+    expect(bal.value).toBe('0.3');
+  });
+
+  it('omits lighting sliders when onLighting is not provided', () => {
+    setupControls({ initial: DEFAULT_SIM_CONFIG, onApply: () => {} });
+    expect(document.querySelector('input[data-lighting-key="azimuth"]')).toBeNull();
+    expect(document.querySelector('input[data-lighting-key="altitude"]')).toBeNull();
+    expect(document.querySelector('input[data-lighting-key="balance"]')).toBeNull();
+  });
+
+  it('invokes lighting setters immediately on slider input', () => {
+    const lighting = {
+      setAzimuth: vi.fn(),
+      setAltitude: vi.fn(),
+      setBalance: vi.fn(),
+    };
+    setupControls({ initial: DEFAULT_SIM_CONFIG, onApply: () => {}, onLighting: lighting });
+    const az = document.querySelector('input[data-lighting-key="azimuth"]') as HTMLInputElement;
+    const alt = document.querySelector('input[data-lighting-key="altitude"]') as HTMLInputElement;
+    const bal = document.querySelector('input[data-lighting-key="balance"]') as HTMLInputElement;
+
+    az.value = '210';
+    az.dispatchEvent(new Event('input'));
+    expect(lighting.setAzimuth).toHaveBeenCalledWith(210);
+
+    alt.value = '60';
+    alt.dispatchEvent(new Event('input'));
+    expect(lighting.setAltitude).toHaveBeenCalledWith(60);
+
+    bal.value = '0.75';
+    bal.dispatchEvent(new Event('input'));
+    expect(lighting.setBalance).toHaveBeenCalledWith(0.75);
+  });
 });
