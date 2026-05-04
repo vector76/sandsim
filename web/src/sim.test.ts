@@ -7,12 +7,27 @@ const CELL = 0.5;
 const H0 = 5.0;
 const BALL_R = 5.0;
 const FEED = 1000;
+const INTERP_FRACTION = 0.5;
+const THETA_REPOSE_DEG = 30.0;
+const N_SEGMENTS = 8;
+const REPOSE_MAX_ITERS = 16;
 
 describe('Sim WASM wrapper', () => {
   it('carves a crater along a swept path', async () => {
     await init();
 
-    const sim = new Sim(TABLE_W, TABLE_H, CELL, H0, BALL_R, FEED);
+    const sim = new Sim(
+      TABLE_W,
+      TABLE_H,
+      CELL,
+      H0,
+      BALL_R,
+      FEED,
+      INTERP_FRACTION,
+      THETA_REPOSE_DEG,
+      N_SEGMENTS,
+      REPOSE_MAX_ITERS,
+    );
     const result = sim.load('G1 X10 Y10 F1000\n', 'reset') as { warnings: unknown[] };
     expect(result).toBeDefined();
     expect(Array.isArray(result.warnings)).toBe(true);

@@ -37,6 +37,10 @@ impl Sim {
         h0_mm: f32,
         ball_radius_mm: f32,
         default_feedrate_mm_per_min: f32,
+        interp_fraction: f32,
+        theta_repose_deg: f32,
+        n_segments: u32,
+        repose_max_iters: u32,
     ) -> Sim {
         let config = SimConfig {
             table_width_mm,
@@ -45,10 +49,10 @@ impl Sim {
             h0_mm,
             ball_radius_mm,
             default_feedrate_mm_per_min,
-            interp_fraction: 0.5,
-            theta_repose_deg: 30.0,
-            n_segments: 8,
-            repose_max_iters: 16,
+            interp_fraction,
+            theta_repose_deg,
+            n_segments: n_segments as usize,
+            repose_max_iters: repose_max_iters as usize,
         };
         Sim {
             inner: CoreSim::new(config),

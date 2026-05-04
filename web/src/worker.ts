@@ -84,7 +84,7 @@ self.onmessage = (event: MessageEvent<MainMessage>) => {
   const msg = event.data;
   switch (msg.type) {
     case 'config': {
-      const c = msg.config;
+      const c = msg.config as any;
       sim = new WasmSim(
         c.table_width_mm,
         c.table_height_mm,
@@ -92,6 +92,10 @@ self.onmessage = (event: MessageEvent<MainMessage>) => {
         c.h0_mm,
         c.ball_radius_mm,
         c.default_feedrate_mm_per_min,
+        c.interp_fraction,
+        c.theta_repose_deg,
+        c.n_segments,
+        c.repose_max_iters,
       );
       const nx = sim.nx();
       const ny = sim.ny();
