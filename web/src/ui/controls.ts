@@ -97,7 +97,8 @@ export function setupControls(opts: ControlsOptions): void {
 
   container.innerHTML = '';
 
-  const collapsed = localStorage.getItem(COLLAPSE_PREF_KEY) === '1';
+  const collapsePref = localStorage.getItem(COLLAPSE_PREF_KEY);
+  const collapsed = collapsePref === null ? true : collapsePref === '1';
 
   const toggleBtn = document.createElement('button');
   toggleBtn.id = 'controls-toggle';

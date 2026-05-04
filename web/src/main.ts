@@ -1,5 +1,5 @@
 import { initScene } from './render/scene.js';
-import { setupFileDrop } from './ui/file-drop.js';
+import { setupFileDrop, setupBuiltinFixtures } from './ui/file-drop.js';
 import { renderWarnings } from './ui/warnings.js';
 import { setupControls } from './ui/controls.js';
 import type { Warning, SimConfig } from './types.js';
@@ -111,14 +111,17 @@ worker.onmessage = (evt: MessageEvent<WorkerMessage>) => {
   }
 };
 
-setupFileDrop((text: string, mode: 'reset' | 'append') => {
+function handleGcodeLoad(text: string, mode: 'reset' | 'append'): void {
   dbg(`file received (${text.length} chars), mode=${mode}, workerReady=${workerReady}`);
   lastGcode = text;
   if (!workerReady) { pendingLoad = { gcode: text, mode }; return; }
   lastLoadMode = mode;
   worker.postMessage({ type: 'load', gcode: text, mode } as MainMessage);
   dbg('sent load to worker');
-});
+}
+
+setupFileDrop(handleGcodeLoad);
+setupBuiltinFixtures(handleGcodeLoad);
 
 setupControls({
   initial: cfg,

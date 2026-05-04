@@ -262,7 +262,6 @@ mod tests {
     #[test]
     fn many_small_dts_complete_segment() {
         let c = cfg();
-        let r = c.ball_radius_mm;
         let mut sim = Sim::new(c);
         let mv = MoveEvent {
             line: 1,

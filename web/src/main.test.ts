@@ -94,7 +94,7 @@ vi.mock('./render/ball.js', () => ({
   createBallMesh: mockCreateBallMesh,
   updateBallMesh: mockUpdateBallMesh,
 }));
-vi.mock('./ui/file-drop.js', () => ({ setupFileDrop: mockSetupFileDrop }));
+vi.mock('./ui/file-drop.js', () => ({ setupFileDrop: mockSetupFileDrop, setupBuiltinFixtures: vi.fn() }));
 vi.mock('./ui/controls.js', () => ({ setupControls: mockSetupControls }));
 vi.mock('./ui/warnings.js', () => ({ renderWarnings: mockRenderWarnings }));
 
