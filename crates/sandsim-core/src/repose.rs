@@ -1,12 +1,105 @@
 use crate::heightmap::Heightmap;
 
 pub fn relax(
-    _hmap: &mut Heightmap,
-    _touched: &[(usize, usize)],
-    _theta_repose_deg: f32,
-    _max_iters: usize,
+    hmap: &mut Heightmap,
+    touched: &[(usize, usize)],
+    theta_repose_deg: f32,
+    max_iters: usize,
 ) -> usize {
-    0
+    if touched.is_empty() || max_iters == 0 {
+        return 0;
+    }
+    let nx = hmap.nx();
+    let ny = hmap.ny();
+    if nx == 0 || ny == 0 {
+        return 0;
+    }
+    let cell_mm = hmap.cell_mm();
+    let thr_axis = theta_repose_deg.to_radians().tan() * cell_mm;
+    let thr_diag = thr_axis * std::f32::consts::SQRT_2;
+
+    // Active mask: dilate `touched` by 1 cell (8-connected), clipped to bounds.
+    let mut active = vec![false; nx * ny];
+    for &(i, j) in touched {
+        if i >= nx || j >= ny {
+            continue;
+        }
+        let i_lo = i.saturating_sub(1);
+        let j_lo = j.saturating_sub(1);
+        let i_hi = (i + 1).min(nx - 1);
+        let j_hi = (j + 1).min(ny - 1);
+        for jj in j_lo..=j_hi {
+            for ii in i_lo..=i_hi {
+                active[jj * nx + ii] = true;
+            }
+        }
+    }
+
+    // All 8 neighbours. After a transfer between A and B the gap is reduced to
+    // exactly `thr`, so the symmetric visit from the other side is a no-op and
+    // volume is preserved per pair-visit. Visiting all 8 is required so that
+    // material can propagate outward from any active cell, including in the
+    // -i / -j directions across the active-set boundary.
+    let neighbours: [(isize, isize, f32); 8] = [
+        (1, 0, thr_axis),
+        (-1, 0, thr_axis),
+        (0, 1, thr_axis),
+        (0, -1, thr_axis),
+        (1, 1, thr_diag),
+        (-1, 1, thr_diag),
+        (1, -1, thr_diag),
+        (-1, -1, thr_diag),
+    ];
+
+    let mut iters_run = 0;
+    for _ in 0..max_iters {
+        iters_run += 1;
+        let mut any_transfer = false;
+
+        // Snapshot of currently-active cells; cells added during this pass
+        // become eligible next iteration.
+        let mut cells: Vec<(usize, usize)> = Vec::new();
+        for j in 0..ny {
+            for i in 0..nx {
+                if active[j * nx + i] {
+                    cells.push((i, j));
+                }
+            }
+        }
+
+        for (i, j) in cells {
+            for &(di, dj, thr) in &neighbours {
+                let ni = i as isize + di;
+                let nj = j as isize + dj;
+                if ni < 0 || nj < 0 || ni >= nx as isize || nj >= ny as isize {
+                    continue;
+                }
+                let ni = ni as usize;
+                let nj = nj as usize;
+                let h_a = hmap.get(i, j);
+                let h_b = hmap.get(ni, nj);
+                let diff = h_a - h_b;
+                let abs_diff = diff.abs();
+                if abs_diff > thr {
+                    let transfer = (abs_diff - thr) / 2.0;
+                    if diff > 0.0 {
+                        hmap.set(i, j, h_a - transfer);
+                        hmap.set(ni, nj, h_b + transfer);
+                    } else {
+                        hmap.set(i, j, h_a + transfer);
+                        hmap.set(ni, nj, h_b - transfer);
+                    }
+                    any_transfer = true;
+                    active[nj * nx + ni] = true;
+                }
+            }
+        }
+
+        if !any_transfer {
+            break;
+        }
+    }
+    iters_run
 }
 
 #[cfg(test)]
@@ -36,7 +129,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "drives the C.2 implementation"]
     fn volume_conservation_after_relax() {
         let nx = 32usize;
         let ny = 32usize;
@@ -59,7 +151,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "drives the C.2 implementation"]
     fn slope_bound_after_relax() {
         let nx = 32usize;
         let ny = 32usize;
@@ -104,7 +195,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "drives the C.2 implementation"]
     fn terminates_within_iter_cap() {
         let nx = 64usize;
         let ny = 64usize;
@@ -124,7 +214,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "drives the C.2 implementation"]
     fn untouched_region_unchanged() {
         let nx = 64usize;
         let ny = 64usize;

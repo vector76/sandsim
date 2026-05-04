@@ -65,6 +65,10 @@ impl Heightmap {
     pub fn ny(&self) -> usize {
         self.ny
     }
+
+    pub fn cell_mm(&self) -> f32 {
+        self.cell_mm
+    }
 }
 
 #[cfg(test)]
