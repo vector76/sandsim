@@ -6,8 +6,8 @@ use sandsim_core::{
 
 fn cfg() -> SimConfig {
     SimConfig {
-        table_width_mm: 100.0,
-        table_height_mm: 80.0,
+        gcode_width_mm: 100.0,
+        gcode_height_mm: 80.0,
         cell_mm: 0.5,
         h0_mm: 5.0,
         ball_radius_mm: 5.0,
@@ -48,7 +48,7 @@ fn straight_horizontal_move_carves_continuous_trough() {
     // The ball travels along y = r in table frame, from x = r to x = r + length.
     // Reference heightmap is the sim's, indexed by world_to_cell at the center line.
     // We re-create a heightmap with the same dimensions to use world_to_cell helpers.
-    let probe = Heightmap::new(c.table_width_mm, c.table_height_mm, c.cell_mm, c.h0_mm);
+    let probe = Heightmap::new(c.gcode_width_mm, c.gcode_height_mm, c.cell_mm, c.h0_mm);
     let buf = sim.heightmap_buffer();
     let nx = sim.nx();
 
@@ -102,7 +102,7 @@ fn intersecting_moves_have_no_gap_at_intersection() {
     sim.advance(120.0);
     assert!(sim.is_done());
 
-    let probe = Heightmap::new(c.table_width_mm, c.table_height_mm, c.cell_mm, c.h0_mm);
+    let probe = Heightmap::new(c.gcode_width_mm, c.gcode_height_mm, c.cell_mm, c.h0_mm);
     let buf = sim.heightmap_buffer();
     let nx = sim.nx();
 

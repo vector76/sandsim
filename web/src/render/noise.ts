@@ -47,7 +47,9 @@ export function createNoiseTexture(size = 256): THREE.DataTexture {
   tex.wrapS = THREE.RepeatWrapping;
   tex.wrapT = THREE.RepeatWrapping;
   tex.magFilter = THREE.LinearFilter;
-  tex.minFilter = THREE.LinearFilter;
+  tex.minFilter = THREE.LinearMipmapLinearFilter;
+  tex.generateMipmaps = true;
+  tex.anisotropy = 16;
   tex.needsUpdate = true;
   return tex;
 }

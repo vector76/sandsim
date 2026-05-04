@@ -9,8 +9,8 @@ const SQUARE_GCODE: &str = include_str!("../../../tests/fixtures/square.gcode");
 #[test]
 fn square_gcode_produces_grooves_and_piles_with_volume_conservation() {
     let cfg = SimConfig {
-        table_width_mm: 300.0,
-        table_height_mm: 200.0,
+        gcode_width_mm: 300.0,
+        gcode_height_mm: 200.0,
         ball_radius_mm: 5.0,
         h0_mm: 3.0,
         cell_mm: 1.0,
@@ -22,8 +22,8 @@ fn square_gcode_produces_grooves_and_piles_with_volume_conservation() {
     };
 
     let parser_cfg = ParserConfig {
-        table_width_mm: cfg.table_width_mm,
-        table_height_mm: cfg.table_height_mm,
+        gcode_width_mm: cfg.gcode_width_mm,
+        gcode_height_mm: cfg.gcode_height_mm,
         ball_radius_mm: cfg.ball_radius_mm,
         default_feedrate_mm_per_min: cfg.default_feedrate_mm_per_min,
     };
@@ -57,7 +57,7 @@ fn square_gcode_produces_grooves_and_piles_with_volume_conservation() {
     let cell_area = cfg.cell_mm * cfg.cell_mm;
     let total_volume: f64 = buf.iter().map(|&h| h as f64).sum::<f64>() * cell_area as f64;
     let expected_volume =
-        cfg.h0_mm as f64 * cfg.table_width_mm as f64 * cfg.table_height_mm as f64;
+        cfg.h0_mm as f64 * cfg.table_width_mm() as f64 * cfg.table_height_mm() as f64;
     let rel_err = (total_volume - expected_volume).abs() / expected_volume;
     assert!(
         rel_err < 0.005,
@@ -67,7 +67,7 @@ fn square_gcode_produces_grooves_and_piles_with_volume_conservation() {
         rel_err
     );
 
-    let probe = Heightmap::new(cfg.table_width_mm, cfg.table_height_mm, cfg.cell_mm, cfg.h0_mm);
+    let probe = Heightmap::new(cfg.table_width_mm(), cfg.table_height_mm(), cfg.cell_mm, cfg.h0_mm);
     let h_at = |x: f32, y: f32| -> f32 {
         let (i, j) = probe.world_to_cell(x, y);
         buf[j * nx + i]

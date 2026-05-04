@@ -34,13 +34,6 @@ export function initScene(canvas: HTMLCanvasElement, tableW: number, tableH: num
   scene.add(lighting.dirLight);
   scene.add(lighting.ambientLight);
 
-  const tableMesh = new THREE.Mesh(
-    new THREE.PlaneGeometry(tableW, tableH),
-    new THREE.MeshLambertMaterial({ color: 0xc2a97a }),
-  );
-  tableMesh.position.set(tableW / 2, tableH / 2, -0.1);
-  scene.add(tableMesh);
-
   function animate() {
     requestAnimationFrame(animate);
     controls.update();

@@ -5,8 +5,8 @@ const ROSE: &str = include_str!("../../../tests/fixtures/rose.gcode");
 
 fn cfg() -> ParserConfig {
     ParserConfig {
-        table_width_mm: 300.0,
-        table_height_mm: 200.0,
+        gcode_width_mm: 300.0,
+        gcode_height_mm: 200.0,
         ball_radius_mm: 5.0,
         default_feedrate_mm_per_min: 1000.0,
     }

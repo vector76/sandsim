@@ -28,7 +28,7 @@ describe('setupControls', () => {
   it('renders one number input per SimConfig field plus Apply button', () => {
     setupControls({ initial: DEFAULT_SIM_CONFIG, onApply: () => {} });
     const keys: (keyof SimConfig)[] = [
-      'table_width_mm', 'table_height_mm', 'cell_mm', 'h0_mm',
+      'gcode_width_mm', 'gcode_height_mm', 'cell_mm', 'h0_mm',
       'ball_radius_mm', 'theta_repose_deg', 'n_segments',
       'interp_fraction', 'repose_max_iters',
     ];
@@ -48,13 +48,13 @@ describe('setupControls', () => {
   it('calls onApply with merged config when inputs are valid', () => {
     const onApply = vi.fn();
     setupControls({ initial: DEFAULT_SIM_CONFIG, onApply });
-    getInput('table_width_mm').value = '400';
+    getInput('gcode_width_mm').value = '400';
     getInput('cell_mm').value = '0.25';
     getInput('n_segments').value = '16';
     applyBtn().click();
     expect(onApply).toHaveBeenCalledTimes(1);
     const cfg = onApply.mock.calls[0][0] as SimConfig;
-    expect(cfg.table_width_mm).toBe(400);
+    expect(cfg.gcode_width_mm).toBe(400);
     expect(cfg.cell_mm).toBe(0.25);
     expect(cfg.n_segments).toBe(16);
     expect(cfg.default_feedrate_mm_per_min).toBe(DEFAULT_SIM_CONFIG.default_feedrate_mm_per_min);
@@ -63,7 +63,7 @@ describe('setupControls', () => {
   it('rejects non-positive numbers and does not call onApply', () => {
     const onApply = vi.fn();
     setupControls({ initial: DEFAULT_SIM_CONFIG, onApply });
-    getInput('table_width_mm').value = '-1';
+    getInput('gcode_width_mm').value = '-1';
     applyBtn().click();
     expect(onApply).not.toHaveBeenCalled();
   });

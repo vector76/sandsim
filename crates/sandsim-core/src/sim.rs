@@ -7,8 +7,8 @@ use crate::{
 
 #[derive(Debug, Clone, Copy)]
 pub struct SimConfig {
-    pub table_width_mm: f32,
-    pub table_height_mm: f32,
+    pub gcode_width_mm: f32,
+    pub gcode_height_mm: f32,
     pub cell_mm: f32,
     pub h0_mm: f32,
     pub ball_radius_mm: f32,
@@ -17,6 +17,15 @@ pub struct SimConfig {
     pub theta_repose_deg: f32,
     pub n_segments: usize,
     pub repose_max_iters: usize,
+}
+
+impl SimConfig {
+    pub fn table_width_mm(&self) -> f32 {
+        self.gcode_width_mm + 2.0 * self.ball_radius_mm
+    }
+    pub fn table_height_mm(&self) -> f32 {
+        self.gcode_height_mm + 2.0 * self.ball_radius_mm
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -42,8 +51,8 @@ pub struct Sim {
 impl Sim {
     pub fn new(config: SimConfig) -> Self {
         let hmap = Heightmap::new(
-            config.table_width_mm,
-            config.table_height_mm,
+            config.table_width_mm(),
+            config.table_height_mm(),
             config.cell_mm,
             config.h0_mm,
         );
@@ -71,8 +80,8 @@ impl Sim {
         match mode {
             LoadMode::Reset => {
                 self.hmap = Heightmap::new(
-                    self.config.table_width_mm,
-                    self.config.table_height_mm,
+                    self.config.table_width_mm(),
+                    self.config.table_height_mm(),
                     self.config.cell_mm,
                     self.config.h0_mm,
                 );
@@ -190,8 +199,8 @@ mod tests {
 
     fn cfg() -> SimConfig {
         SimConfig {
-            table_width_mm: 100.0,
-            table_height_mm: 80.0,
+            gcode_width_mm: 100.0,
+            gcode_height_mm: 80.0,
             cell_mm: 0.5,
             h0_mm: 5.0,
             ball_radius_mm: 5.0,

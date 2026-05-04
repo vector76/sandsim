@@ -21,6 +21,10 @@ let running = false;
 let simTime = 0;
 let lastTime: number | null = null;
 let tickScheduled = false;
+let cellMm = 0;
+let h0Mm = 0;
+let tableW = 0;
+let tableH = 0;
 
 let tickCount = 0;
 function tick(): void {
@@ -47,6 +51,31 @@ function tick(): void {
     const view = new Float32Array(freeBuf);
     sim.fill_heightmap(view);
     const [bx, by] = sim.ball_position();
+
+    if (tickCount <= 5 || tickCount % 120 === 0) {
+      let sum = 0;
+      let min = Infinity;
+      let max = -Infinity;
+      let above = 0;
+      let below = 0;
+      for (let i = 0; i < view.length; i++) {
+        const v = view[i];
+        sum += v;
+        if (v < min) min = v;
+        if (v > max) max = v;
+        if (v > h0Mm + 1e-4) above++;
+        else if (v < h0Mm - 1e-4) below++;
+      }
+      const cellArea = cellMm * cellMm;
+      const totalVol = sum * cellArea;
+      const expectedVol = h0Mm * tableW * tableH;
+      const relErr = expectedVol > 0 ? (totalVol - expectedVol) / expectedVol : 0;
+      self.postMessage({
+        type: 'debug',
+        msg: `VOL tick=${tickCount} cells=${view.length} sum=${sum.toFixed(2)} vol=${totalVol.toFixed(2)} expected=${expectedVol.toFixed(2)} relErr=${(relErr * 100).toFixed(4)}% min=${min.toFixed(3)} max=${max.toFixed(3)} above=${above} below=${below}`,
+      } as unknown as WorkerMessage);
+    }
+
     if (freeBuf === bufA) bufA = null;
     else bufB = null;
     const msg: WorkerMessage = {
@@ -86,10 +115,14 @@ self.onmessage = (event: MessageEvent<MainMessage>) => {
     case 'config': {
       // 'config' resets the worker to a no-gcode-loaded state; main thread must re-issue 'load' to resume.
       const c = msg.config;
+      cellMm = c.cell_mm;
+      h0Mm = c.h0_mm;
+      tableW = c.gcode_width_mm + 2 * c.ball_radius_mm;
+      tableH = c.gcode_height_mm + 2 * c.ball_radius_mm;
       sim = null;
       sim = new WasmSim(
-        c.table_width_mm,
-        c.table_height_mm,
+        c.gcode_width_mm,
+        c.gcode_height_mm,
         c.cell_mm,
         c.h0_mm,
         c.ball_radius_mm,

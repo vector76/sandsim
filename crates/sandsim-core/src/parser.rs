@@ -4,18 +4,18 @@ use serde::Serialize;
 
 #[derive(Debug, Clone, Copy)]
 pub struct ParserConfig {
-    pub table_width_mm: f32,
-    pub table_height_mm: f32,
+    pub gcode_width_mm: f32,
+    pub gcode_height_mm: f32,
     pub ball_radius_mm: f32,
     pub default_feedrate_mm_per_min: f32,
 }
 
 impl ParserConfig {
     pub fn reachable_max_x(&self) -> f32 {
-        self.table_width_mm - 2.0 * self.ball_radius_mm
+        self.gcode_width_mm
     }
     pub fn reachable_max_y(&self) -> f32 {
-        self.table_height_mm - 2.0 * self.ball_radius_mm
+        self.gcode_height_mm
     }
 }
 

@@ -14,8 +14,8 @@ export async function parseGcode(text: string, config: ParserConfig): Promise<Pa
   await ensureInit();
   return parse_gcode(
     text,
-    config.table_width_mm,
-    config.table_height_mm,
+    config.gcode_width_mm,
+    config.gcode_height_mm,
     config.ball_radius_mm,
     config.default_feedrate_mm_per_min,
   ) as ParseOutput;

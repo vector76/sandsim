@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { DEFAULT_SIM_CONFIG } from './types.js';
+import { DEFAULT_SIM_CONFIG, tableWidthMm, tableHeightMm } from './types.js';
 
 const {
   mockAddObject,
@@ -137,24 +137,24 @@ describe('main bootstrap', () => {
     const canvas = document.getElementById('canvas') as HTMLCanvasElement;
     expect(mockInitScene).toHaveBeenCalledWith(
       canvas,
-      DEFAULT_SIM_CONFIG.table_width_mm,
-      DEFAULT_SIM_CONFIG.table_height_mm,
+      tableWidthMm(DEFAULT_SIM_CONFIG),
+      tableHeightMm(DEFAULT_SIM_CONFIG),
     );
   });
 
   it('creates sand and ball meshes and adds them to the scene', async () => {
     await import('./main.js');
     const expectedNx = Math.ceil(
-      DEFAULT_SIM_CONFIG.table_width_mm / DEFAULT_SIM_CONFIG.cell_mm,
+      tableWidthMm(DEFAULT_SIM_CONFIG) / DEFAULT_SIM_CONFIG.cell_mm,
     );
     const expectedNy = Math.ceil(
-      DEFAULT_SIM_CONFIG.table_height_mm / DEFAULT_SIM_CONFIG.cell_mm,
+      tableHeightMm(DEFAULT_SIM_CONFIG) / DEFAULT_SIM_CONFIG.cell_mm,
     );
     expect(mockCreateSandMesh).toHaveBeenCalledWith(
       expectedNx,
       expectedNy,
-      DEFAULT_SIM_CONFIG.table_width_mm,
-      DEFAULT_SIM_CONFIG.table_height_mm,
+      tableWidthMm(DEFAULT_SIM_CONFIG),
+      tableHeightMm(DEFAULT_SIM_CONFIG),
     );
     expect(mockCreateBallMesh).toHaveBeenCalledWith(DEFAULT_SIM_CONFIG.ball_radius_mm);
     expect(mockAddObject).toHaveBeenCalledTimes(2);
@@ -257,12 +257,13 @@ describe('main bootstrap', () => {
     worker.postMessage.mockClear();
 
     const expectedNx = Math.ceil(
-      DEFAULT_SIM_CONFIG.table_width_mm / DEFAULT_SIM_CONFIG.cell_mm,
+      tableWidthMm(DEFAULT_SIM_CONFIG) / DEFAULT_SIM_CONFIG.cell_mm,
     );
     const expectedNy = Math.ceil(
-      DEFAULT_SIM_CONFIG.table_height_mm / DEFAULT_SIM_CONFIG.cell_mm,
+      tableHeightMm(DEFAULT_SIM_CONFIG) / DEFAULT_SIM_CONFIG.cell_mm,
     );
     const buf = new ArrayBuffer(expectedNx * expectedNy * 4);
+    mockUpdateSandMesh.mockClear();
     worker.emit({
       type: 'frame',
       buf,
@@ -421,10 +422,10 @@ describe('main bootstrap', () => {
     expect(worker.postMessage).toHaveBeenCalledWith({ type: 'config', config: newCfg });
     expect(mockRemoveObject).toHaveBeenCalledTimes(1);
     expect(mockCreateSandMesh).toHaveBeenCalledTimes(1);
-    const newNx = Math.ceil(newCfg.table_width_mm / newCfg.cell_mm);
-    const newNy = Math.ceil(newCfg.table_height_mm / newCfg.cell_mm);
+    const newNx = Math.ceil(tableWidthMm(newCfg) / newCfg.cell_mm);
+    const newNy = Math.ceil(tableHeightMm(newCfg) / newCfg.cell_mm);
     expect(mockCreateSandMesh).toHaveBeenCalledWith(
-      newNx, newNy, newCfg.table_width_mm, newCfg.table_height_mm,
+      newNx, newNy, tableWidthMm(newCfg), tableHeightMm(newCfg),
     );
     expect(mockAddObject).toHaveBeenCalledTimes(1);
   });
@@ -560,8 +561,8 @@ describe('main bootstrap', () => {
     mockUpdateSandMesh.mockClear();
     worker.postMessage.mockClear();
 
-    const newNx = Math.ceil(newCfg.table_width_mm / newCfg.cell_mm);
-    const newNy = Math.ceil(newCfg.table_height_mm / newCfg.cell_mm);
+    const newNx = Math.ceil(tableWidthMm(newCfg) / newCfg.cell_mm);
+    const newNy = Math.ceil(tableHeightMm(newCfg) / newCfg.cell_mm);
     const buf = new ArrayBuffer(newNx * newNy * 4);
     worker.emit({
       type: 'frame',

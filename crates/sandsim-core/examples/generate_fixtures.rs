@@ -9,8 +9,8 @@ use sandsim_core::parser::ParserConfig;
 
 fn main() {
     let config = ParserConfig {
-        table_width_mm: 300.0,
-        table_height_mm: 200.0,
+        gcode_width_mm: 300.0,
+        gcode_height_mm: 200.0,
         ball_radius_mm: 5.0,
         default_feedrate_mm_per_min: 1000.0,
     };

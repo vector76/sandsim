@@ -57,7 +57,7 @@ describe('createSandMesh', () => {
     const handle = createSandMesh(3, 3, 10, 10);
     expect(handle.material.vertexShader).toContain('uHeightmap');
     expect(handle.material.vertexShader).toContain('texture2D');
-    expect(handle.material.fragmentShader).toContain('vec3(0.76, 0.66, 0.48)');
+    expect(handle.material.fragmentShader).toContain('vec3(0.94, 0.91, 0.84)');
   });
 
   it('exposes uNoise and uNoiseScale uniforms with a default scale of ~5 mm', () => {

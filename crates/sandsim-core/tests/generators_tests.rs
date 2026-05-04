@@ -3,8 +3,8 @@ use sandsim_core::parser::{parse, ParserConfig};
 
 fn cfg() -> ParserConfig {
     ParserConfig {
-        table_width_mm: 300.0,
-        table_height_mm: 200.0,
+        gcode_width_mm: 300.0,
+        gcode_height_mm: 200.0,
         ball_radius_mm: 5.0,
         default_feedrate_mm_per_min: 1000.0,
     }
@@ -186,8 +186,8 @@ fn generators_do_not_panic_on_degenerate_config() {
     // Ball larger than the table (reachable extent < 0). Generators should
     // still produce parseable output rather than panicking inside `clamp`.
     let c = ParserConfig {
-        table_width_mm: 5.0,
-        table_height_mm: 5.0,
+        gcode_width_mm: 5.0,
+        gcode_height_mm: 5.0,
         ball_radius_mm: 10.0,
         default_feedrate_mm_per_min: 1000.0,
     };

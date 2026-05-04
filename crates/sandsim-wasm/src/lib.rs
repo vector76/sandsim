@@ -6,12 +6,12 @@ use wasm_bindgen::prelude::*;
 #[wasm_bindgen]
 pub fn parse_gcode(
     gcode: &str,
-    table_width_mm: f32,
-    table_height_mm: f32,
+    gcode_width_mm: f32,
+    gcode_height_mm: f32,
     ball_radius_mm: f32,
     default_feedrate_mm_per_min: f32,
 ) -> Result<JsValue, JsValue> {
-    let config = ParserConfig { table_width_mm, table_height_mm, ball_radius_mm, default_feedrate_mm_per_min };
+    let config = ParserConfig { gcode_width_mm, gcode_height_mm, ball_radius_mm, default_feedrate_mm_per_min };
     let output = parse(gcode, &config);
     serde_wasm_bindgen::to_value(&output).map_err(|e| JsValue::from_str(&e.to_string()))
 }
@@ -31,8 +31,8 @@ pub struct Sim {
 impl Sim {
     #[wasm_bindgen(constructor)]
     pub fn new(
-        table_width_mm: f32,
-        table_height_mm: f32,
+        gcode_width_mm: f32,
+        gcode_height_mm: f32,
         cell_mm: f32,
         h0_mm: f32,
         ball_radius_mm: f32,
@@ -43,8 +43,8 @@ impl Sim {
         repose_max_iters: u32,
     ) -> Sim {
         let config = SimConfig {
-            table_width_mm,
-            table_height_mm,
+            gcode_width_mm,
+            gcode_height_mm,
             cell_mm,
             h0_mm,
             ball_radius_mm,
@@ -67,8 +67,8 @@ impl Sim {
             other => return Err(JsValue::from_str(&format!("invalid load mode: {}", other))),
         };
         let parser_config = ParserConfig {
-            table_width_mm: self.config.table_width_mm,
-            table_height_mm: self.config.table_height_mm,
+            gcode_width_mm: self.config.gcode_width_mm,
+            gcode_height_mm: self.config.gcode_height_mm,
             ball_radius_mm: self.config.ball_radius_mm,
             default_feedrate_mm_per_min: self.config.default_feedrate_mm_per_min,
         };

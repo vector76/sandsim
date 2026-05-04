@@ -10,7 +10,13 @@ export interface ControlsOptions {
   initial: SimConfig;
   onApply: (cfg: SimConfig) => void;
   onLighting?: LightingControls;
+  onDebugToggle?: {
+    initial: boolean;
+    setVisible: (visible: boolean) => void;
+  };
 }
+
+const COLLAPSE_PREF_KEY = 'sandsim.controlsCollapsed';
 
 interface FieldSpec {
   key: keyof SimConfig;
@@ -60,8 +66,8 @@ const LIGHTING_SLIDERS: LightingSliderSpec[] = [
 ];
 
 const FIELDS: FieldSpec[] = [
-  { key: 'table_width_mm', label: 'table width (mm)', step: '1', validate: positive },
-  { key: 'table_height_mm', label: 'table height (mm)', step: '1', validate: positive },
+  { key: 'gcode_width_mm', label: 'gcode width (mm)', step: '1', validate: positive },
+  { key: 'gcode_height_mm', label: 'gcode height (mm)', step: '1', validate: positive },
   { key: 'cell_mm', label: 'cell (mm)', step: '0.1', validate: positive },
   { key: 'h0_mm', label: 'initial sand height h0 (mm)', step: '0.1', validate: positive },
   { key: 'ball_radius_mm', label: 'ball radius (mm)', step: '0.1', validate: positive },
@@ -91,6 +97,29 @@ export function setupControls(opts: ControlsOptions): void {
 
   container.innerHTML = '';
 
+  const collapsed = localStorage.getItem(COLLAPSE_PREF_KEY) === '1';
+
+  const toggleBtn = document.createElement('button');
+  toggleBtn.id = 'controls-toggle';
+  toggleBtn.type = 'button';
+  toggleBtn.style.cssText = 'background:#333;color:#eee;border:1px solid #555;padding:4px 10px;cursor:pointer;font:12px sans-serif;width:100%;text-align:left;margin-bottom:4px;';
+  container.appendChild(toggleBtn);
+
+  const body = document.createElement('div');
+  body.id = 'controls-body';
+  container.appendChild(body);
+
+  function applyCollapsed(c: boolean): void {
+    body.style.display = c ? 'none' : '';
+    toggleBtn.textContent = c ? '▶ settings' : '▼ settings';
+  }
+  applyCollapsed(collapsed);
+  toggleBtn.addEventListener('click', () => {
+    const isHidden = body.style.display === 'none';
+    applyCollapsed(!isHidden);
+    localStorage.setItem(COLLAPSE_PREF_KEY, !isHidden ? '1' : '0');
+  });
+
   const inputs = new Map<keyof SimConfig, HTMLInputElement>();
 
   for (const spec of FIELDS) {
@@ -110,7 +139,7 @@ export function setupControls(opts: ControlsOptions): void {
 
     label.appendChild(input);
     row.appendChild(label);
-    container.appendChild(row);
+    body.appendChild(row);
     inputs.set(spec.key, input);
   }
 
@@ -146,20 +175,36 @@ export function setupControls(opts: ControlsOptions): void {
       row.appendChild(label);
       row.appendChild(input);
       row.appendChild(valueEl);
-      container.appendChild(row);
+      body.appendChild(row);
     }
+  }
+
+  if (opts.onDebugToggle) {
+    const dbg = opts.onDebugToggle;
+    const row = document.createElement('label');
+    row.style.cssText = 'display:flex;align-items:center;gap:6px;margin:6px 0 2px;font:12px sans-serif;cursor:pointer;';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.id = 'controls-debug';
+    cb.checked = dbg.initial;
+    cb.addEventListener('change', () => dbg.setVisible(cb.checked));
+    const lbl = document.createElement('span');
+    lbl.textContent = 'show debug log';
+    row.appendChild(cb);
+    row.appendChild(lbl);
+    body.appendChild(row);
   }
 
   const errorEl = document.createElement('div');
   errorEl.style.cssText = 'color:#f66;font:12px sans-serif;min-height:1em;margin:4px 0;';
-  container.appendChild(errorEl);
+  body.appendChild(errorEl);
 
   const applyBtn = document.createElement('button');
   applyBtn.id = 'controls-apply';
   applyBtn.type = 'button';
   applyBtn.textContent = 'Apply';
   applyBtn.style.cssText = 'background:#333;color:#eee;border:1px solid #555;padding:4px 10px;cursor:pointer;';
-  container.appendChild(applyBtn);
+  body.appendChild(applyBtn);
 
   applyBtn.addEventListener('click', () => {
     const next: Partial<SimConfig> = {};

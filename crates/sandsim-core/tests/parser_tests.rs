@@ -2,8 +2,8 @@ use sandsim_core::parser::{parse, ParserConfig};
 
 fn cfg() -> ParserConfig {
     ParserConfig {
-        table_width_mm: 300.0,
-        table_height_mm: 200.0,
+        gcode_width_mm: 300.0,
+        gcode_height_mm: 200.0,
         ball_radius_mm: 5.0,
         default_feedrate_mm_per_min: 1000.0,
     }
@@ -144,7 +144,7 @@ fn wall_clamp_high_x() {
     assert_eq!(out.warnings.len(), 1);
     assert_eq!(out.warnings[0].line, 1);
     assert_eq!(out.moves.len(), 1);
-    assert_eq!(out.moves[0].x_mm, 290.0); // 300 - 2*5
+    assert_eq!(out.moves[0].x_mm, 300.0); // gcode_width
     assert_eq!(out.moves[0].y_mm, 100.0);
 }
 
@@ -161,7 +161,7 @@ fn wall_clamp_high_y() {
     let out = parse("G1 X100 Y300 F500", &cfg());
     assert_eq!(out.warnings.len(), 1);
     assert_eq!(out.moves[0].x_mm, 100.0);
-    assert_eq!(out.moves[0].y_mm, 190.0); // 200 - 2*5
+    assert_eq!(out.moves[0].y_mm, 200.0); // gcode_height
 }
 
 #[test]
@@ -268,9 +268,9 @@ fn fixture_wall_clamp() {
     let out = parse(&fixture("wall_clamp.gcode"), &cfg());
     assert_eq!(out.warnings.len(), 3);
     assert_eq!(out.moves.len(), 3);
-    assert_eq!((out.moves[0].x_mm, out.moves[0].y_mm), (290.0, 100.0));
+    assert_eq!((out.moves[0].x_mm, out.moves[0].y_mm), (300.0, 100.0));
     assert_eq!((out.moves[1].x_mm, out.moves[1].y_mm), (0.0, 50.0));
-    assert_eq!((out.moves[2].x_mm, out.moves[2].y_mm), (100.0, 190.0));
+    assert_eq!((out.moves[2].x_mm, out.moves[2].y_mm), (100.0, 200.0));
 }
 
 #[test]

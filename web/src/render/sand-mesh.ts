@@ -57,7 +57,7 @@ const FRAGMENT_SHADER = /* glsl */ `
     vec3 perturbed = normalize(normalize(vNormal) + vec3((noise - 0.5) * 0.1, (noise - 0.5) * 0.1, 0.0));
     float diff = max(dot(perturbed, normalize(uLightDir)), 0.0);
     vec3 lit = diff * uLightColor + uAmbient;
-    vec3 base = vec3(0.76, 0.66, 0.48) * mix(0.85, 1.15, noise);
+    vec3 base = vec3(0.94, 0.91, 0.84) * mix(0.85, 1.15, noise);
     gl_FragColor = vec4(base * lit, 1.0);
   }
 `;
