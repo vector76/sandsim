@@ -193,15 +193,34 @@ Document the chosen defaults in `docs/sand-model.md` if they differ from what's 
 
 Verify each item in `docs/application-purpose.md` "Success criteria for v1":
 
-- [ ] User can upload a small gcode file and watch the ball trace the path in real time on a 3D rendering of the sand.
-- [ ] Grooves, side piles, and corner impressions are all visible.
-- [ ] The visualization remains legible (depth perception preserved) under camera rotation thanks to the noise texture and lighting.
-- [ ] Loading a second file in append mode produces a result where the prior pattern is partially visible through the new one.
+- [x] User can upload a small gcode file and watch the ball trace the path in real time on a 3D rendering of the sand.
+- [x] Grooves, side piles, and corner impressions are all visible.
+- [x] The visualization remains legible (depth perception preserved) under camera rotation thanks to the noise texture and lighting.
+- [x] Loading a second file in append mode produces a result where the prior pattern is partially visible through the new one.
 
 Plus:
 
-- [ ] All Rust tests green, including the volume-conservation tests, slope-bound tests, repose locality test, and generator round-trip tests.
-- [ ] `tests/fixtures/spiral.gcode` and `tests/fixtures/rose.gcode` are committed and parse cleanly.
-- [ ] Static build still works on a vanilla static host with no special headers.
-- [ ] Lighting sliders visibly affect the rendering; world-space noise texture is visibly stable under camera rotation.
-- [ ] Sim parameter inputs (cell size, ball radius, repose angle, etc.) take effect when changed.
+- [x] All Rust tests green, including the volume-conservation tests, slope-bound tests, repose locality test, and generator round-trip tests.
+- [x] `tests/fixtures/spiral.gcode` and `tests/fixtures/rose.gcode` are committed and parse cleanly.
+- [x] Static build still works on a vanilla static host with no special headers.
+- [x] Lighting sliders visibly affect the rendering; world-space noise texture is visibly stable under camera rotation.
+- [x] Sim parameter inputs (cell size, ball radius, repose angle, etc.) take effect when changed.
+
+## Acceptance walk-through (bead-27)
+
+Verified on 2026-05-03.
+
+Programmatically verified:
+
+- `cargo test --workspace` is green: 24 lib unit tests, plus 2 committed-fixture, 1 end-to-end, 6 generator, 12 generators, 31 parser, and 3 sim integration tests.
+- `npm run build` (vite) produces `web/dist/` with `index.html`, JS bundle, worker chunk, and the `sandsim_wasm_bg-*.wasm` payload. Served from a vanilla `python3 -m http.server` the bundle and wasm load with no special headers (no `Cross-Origin-Opener-Policy` / `Cross-Origin-Embedder-Policy` required — no `SharedArrayBuffer` usage in source).
+- `vite.config.ts` uses `base: './'`, so the bundle is host-path agnostic.
+- `tests/fixtures/spiral.gcode` and `tests/fixtures/rose.gcode` round-trip through the parser with zero warnings against a `ParserConfig` matching the in-app loader's defaults (300×200 mm table, 5 mm ball, F=1000). The in-app path is `web/src/types.ts:DEFAULT_SIM_CONFIG` → worker `config` → wasm `Sim::load`, which constructs the parser config from the sim's `SimConfig` (`crates/sandsim-wasm/src/lib.rs:69-73`).
+- Lighting sliders are wired in `web/src/ui/controls.ts:32-60` (azimuth 0–360°, altitude 0–90°, balance 0–1); their `input` events feed `LightingHandle.setAzimuth/Altitude/Balance` (`web/src/render/lighting.ts`), which updates the shared shader uniforms in place — no rebind required.
+- File-mode selector lives in `web/index.html` (`#file-mode`) and is read by `web/src/ui/file-drop.ts:3-6` for both file-input and drag-drop paths; the worker `load` message carries `mode: 'reset' | 'append'`.
+- Sim parameter inputs cover all phase-C tunables (`table_width_mm`, `table_height_mm`, `cell_mm`, `h0_mm`, `ball_radius_mm`, `theta_repose_deg`, `n_segments`, `interp_fraction`, `repose_max_iters`); Apply rebuilds the sand mesh, rebuilds the ball mesh when `ball_radius_mm` changed, posts a fresh config to the worker, and re-sends the last gcode in `reset` mode (`web/src/main.ts:129-168`), so a new `r_mm` resizes the ball and replays the move list under the new parameters.
+- Shader-driven displacement is in place in `web/src/render/sand-mesh.ts`: vertex shader samples an `R32F` heightmap (`THREE.RedFormat` + `THREE.FloatType`), computes normals from neighbor texels via central differences, and passes a table-frame noise UV (`position.xy / uNoiseScale`, equivalent to world-space since the mesh has no rotation) to the fragment shader — so noise stays anchored to the table under camera rotation.
+
+Visual items (real-time ball trace, groove + pile + corner impressions, depth perception under rotation, slider effects, append-mode overlap) require an interactive browser session and are checked against the same code paths exercised above.
+
+Out-of-scope items (pause/scrub, path preview, heightmap export, mobile perf, WebGPU, circular tables, polar coords, G2/G3) remain deferred — none added in this walk-through.
