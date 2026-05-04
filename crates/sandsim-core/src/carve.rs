@@ -92,6 +92,102 @@ impl Footprint {
     }
 }
 
+/// Segmented carve, deposit, and overflow kernel (see docs/sand-model.md).
+///
+/// Returns the union of every (i, j) modified by carve, deposit, or spill,
+/// suitable for handing to `repose::relax` as the active set.
+pub fn carve_segmented(
+    hmap: &mut Heightmap,
+    footprint: &Footprint,
+    cx_mm: f32,
+    cy_mm: f32,
+) -> Vec<(usize, usize)> {
+    let cell_mm = footprint.cell_mm;
+    let cell_area = (cell_mm as f64) * (cell_mm as f64);
+    let r_mm = footprint.r_mm;
+    let nx = hmap.nx() as i32;
+    let ny = hmap.ny() as i32;
+    let (bi, bj) = hmap.world_to_cell(cx_mm, cy_mm);
+    let bi = bi as i32;
+    let bj = bj as i32;
+
+    let mut touched: std::collections::HashSet<(usize, usize)> =
+        std::collections::HashSet::new();
+
+    for s in 0..footprint.n_segments {
+        let mut v_seg: f64 = 0.0;
+
+        // 1. Carve pass.
+        for &idx in &footprint.inner_by_segment[s] {
+            let (di, dj) = footprint.inner_offsets[idx];
+            let i = bi + di;
+            let j = bj + dj;
+            if i < 0 || j < 0 || i >= nx || j >= ny {
+                continue;
+            }
+            let (i, j) = (i as usize, j as usize);
+            let z_u = r_mm + footprint.z_under[idx];
+            let current = hmap.get(i, j);
+            if current > z_u {
+                let displaced = (current - z_u) as f64;
+                v_seg += displaced * cell_area;
+                hmap.set(i, j, z_u);
+                touched.insert((i, j));
+            }
+        }
+
+        // 2. Deposit pass — inner_by_segment[s] is already sorted ascending
+        //    by distance from ball center.
+        for &idx in &footprint.inner_by_segment[s] {
+            if v_seg <= 0.0 {
+                break;
+            }
+            let (di, dj) = footprint.inner_offsets[idx];
+            let i = bi + di;
+            let j = bj + dj;
+            if i < 0 || j < 0 || i >= nx || j >= ny {
+                continue;
+            }
+            let (i, j) = (i as usize, j as usize);
+            let z_u = r_mm + footprint.z_under[idx];
+            let current = hmap.get(i, j);
+            let room = (z_u - current) as f64;
+            if room > 0.0 {
+                let max_fill_vol = room * cell_area;
+                let fill_vol = max_fill_vol.min(v_seg);
+                let dh = fill_vol / cell_area;
+                hmap.set(i, j, current + dh as f32);
+                v_seg -= fill_vol;
+                touched.insert((i, j));
+            }
+        }
+
+        // 3. Overflow pass — equal share over spill[s].
+        if v_seg > 0.0 {
+            let spill = &footprint.spill_by_segment[s];
+            let mut in_bounds: Vec<(usize, usize)> = Vec::with_capacity(spill.len());
+            for &(di, dj) in spill {
+                let i = bi + di;
+                let j = bj + dj;
+                if i < 0 || j < 0 || i >= nx || j >= ny {
+                    continue;
+                }
+                in_bounds.push((i as usize, j as usize));
+            }
+            if !in_bounds.is_empty() {
+                let dh = v_seg / (in_bounds.len() as f64 * cell_area);
+                for (i, j) in in_bounds {
+                    let current = hmap.get(i, j);
+                    hmap.set(i, j, current + dh as f32);
+                    touched.insert((i, j));
+                }
+            }
+        }
+    }
+
+    touched.into_iter().collect()
+}
+
 pub fn carve_naive(hmap: &mut Heightmap, cx_mm: f32, cy_mm: f32, r_mm: f32) {
     let (i_min, j_min) = hmap.world_to_cell(cx_mm - r_mm, cy_mm - r_mm);
     let (i_max, j_max) = hmap.world_to_cell(cx_mm + r_mm, cy_mm + r_mm);
@@ -236,12 +332,9 @@ mod tests {
     // ---- Phase C.1 contract tests --------------------------------------
     //
     // These tests codify what the segmented carve & deposit kernel from
-    // docs/sand-model.md must do. They run against the placeholder
-    // `carve_naive` (which loses volume and never deposits) so they fail
-    // here on purpose — that's the "red" half of the red/green motion the
-    // phase-C plan calls out. They are #[ignore]d so the workspace stays
-    // green between beads; remove the ignore once the segmented kernel
-    // lands and the same assertions should turn green without edits.
+    // docs/sand-model.md must do: volume conservation, no rear-wedge
+    // backfill, balanced spill across octants, and inner-cavity fill
+    // without overflow.
 
     fn total_volume(hmap: &Heightmap) -> f64 {
         let cell_area = (hmap.cell_mm() as f64).powi(2);
@@ -250,15 +343,15 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "drives the C.1 rewrite; passes once the segmented kernel lands"]
     fn volume_conservation_single_carve() {
         let cell_mm = 0.5_f32;
         let h0 = 5.0_f32;
         let r_mm = 3.0_f32;
         let mut hmap = Heightmap::new(15.0, 15.0, cell_mm, h0);
+        let fp = Footprint::new(r_mm, cell_mm, 8);
 
         let initial_vol = total_volume(&hmap);
-        carve_naive(&mut hmap, 7.75, 7.75, r_mm);
+        carve_segmented(&mut hmap, &fp, 7.75, 7.75);
         let final_vol = total_volume(&hmap);
 
         let tol = 1e-3 * initial_vol;
@@ -271,7 +364,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "drives the C.1 rewrite; passes once the segmented kernel lands"]
     fn per_segment_trough_no_backfill() {
         let cell_mm = 0.5_f32;
         let h0 = 5.0_f32;
@@ -301,7 +393,7 @@ mod tests {
         }
 
         let initial_vol = total_volume(&hmap);
-        carve_naive(&mut hmap, cx, cy, r_mm);
+        carve_segmented(&mut hmap, &fp, cx, cy);
 
         for &(i, j) in &trough_cells {
             assert_eq!(
@@ -325,7 +417,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "drives the C.1 rewrite; passes once the segmented kernel lands"]
     fn stationary_ring_symmetry() {
         let cell_mm = 0.5_f32;
         let h0 = 5.0_f32;
@@ -336,7 +427,7 @@ mod tests {
         let (bi, bj) = hmap.world_to_cell(cx, cy);
 
         let fp = Footprint::new(r_mm, cell_mm, 8);
-        carve_naive(&mut hmap, cx, cy, r_mm);
+        carve_segmented(&mut hmap, &fp, cx, cy);
 
         // For uniform input, the deposit pass finds no room within inner
         // (every inner cell sits exactly at z_under after carve), so each
@@ -377,7 +468,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "drives the C.1 rewrite; passes once the segmented kernel lands"]
     fn cavity_fill_no_overflow() {
         let cell_mm = 0.5_f32;
         let h0 = 5.0_f32;
@@ -421,7 +511,7 @@ mod tests {
             }
         }
 
-        carve_naive(&mut hmap, cx, cy, r_mm);
+        carve_segmented(&mut hmap, &fp, cx, cy);
 
         for &((i, j), v) in &outside {
             assert_eq!(
