@@ -1,4 +1,9 @@
-use crate::{carve::carve_naive, heightmap::Heightmap, parser::MoveEvent};
+use crate::{
+    carve::{carve_segmented, Footprint},
+    heightmap::Heightmap,
+    parser::MoveEvent,
+    repose,
+};
 
 #[derive(Debug, Clone, Copy)]
 pub struct SimConfig {
@@ -23,6 +28,7 @@ pub enum LoadMode {
 pub struct Sim {
     config: SimConfig,
     hmap: Heightmap,
+    footprint: Footprint,
     ball_x: f32,
     ball_y: f32,
     moves: Vec<MoveEvent>,
@@ -42,9 +48,11 @@ impl Sim {
             config.h0_mm,
         );
         let r = config.ball_radius_mm;
+        let footprint = Footprint::new(r, config.cell_mm, config.n_segments);
         Self {
             config,
             hmap,
+            footprint,
             ball_x: r,
             ball_y: r,
             moves: Vec::new(),
@@ -85,8 +93,9 @@ impl Sim {
     }
 
     pub fn advance(&mut self, dt_seconds: f32) {
-        let r = self.config.ball_radius_mm;
         let step_mm = self.config.interp_fraction * self.config.cell_mm;
+        let theta = self.config.theta_repose_deg;
+        let max_iters = self.config.repose_max_iters;
         let mut remaining_dt = dt_seconds + self.pending_dt;
         self.pending_dt = 0.0;
 
@@ -97,7 +106,9 @@ impl Sim {
             let dist = (dx * dx + dy * dy).sqrt();
 
             if dist < 1e-6 {
-                carve_naive(&mut self.hmap, self.ball_x, self.ball_y, r);
+                let touched =
+                    carve_segmented(&mut self.hmap, &self.footprint, self.ball_x, self.ball_y);
+                repose::relax(&mut self.hmap, &touched, theta, max_iters);
                 self.seg_idx += 1;
                 continue;
             }
@@ -113,7 +124,8 @@ impl Sim {
                     let t = k as f32 / n as f32;
                     let cx = start_x + dx * t;
                     let cy = start_y + dy * t;
-                    carve_naive(&mut self.hmap, cx, cy, r);
+                    let touched = carve_segmented(&mut self.hmap, &self.footprint, cx, cy);
+                    repose::relax(&mut self.hmap, &touched, theta, max_iters);
                 }
                 self.ball_x = target.x_mm;
                 self.ball_y = target.y_mm;
@@ -137,7 +149,9 @@ impl Sim {
                 let uy = ddy / ddist;
                 self.ball_x += ux * step_mm;
                 self.ball_y += uy * step_mm;
-                carve_naive(&mut self.hmap, self.ball_x, self.ball_y, r);
+                let touched =
+                    carve_segmented(&mut self.hmap, &self.footprint, self.ball_x, self.ball_y);
+                repose::relax(&mut self.hmap, &touched, theta, max_iters);
                 remaining_dt -= step_time;
                 took_step = true;
             }
