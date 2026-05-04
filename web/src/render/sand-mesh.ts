@@ -1,8 +1,10 @@
 import * as THREE from 'three';
+import { createNoiseTexture } from './noise.js';
 
 export interface SandMeshHandle {
   mesh: THREE.Mesh;
   texture: THREE.DataTexture;
+  noiseTexture: THREE.DataTexture;
   material: THREE.ShaderMaterial;
   nx: number;
   ny: number;
@@ -12,9 +14,11 @@ const VERTEX_SHADER = /* glsl */ `
   uniform sampler2D uHeightmap;
   uniform vec2 uTexel;
   uniform vec2 uTableSize;
+  uniform float uNoiseScale;
 
   varying vec2 vWorldXY;
   varying vec3 vNormal;
+  varying vec2 vNoiseUv;
 
   void main() {
     vec2 uv = position.xy / uTableSize;
@@ -33,6 +37,7 @@ const VERTEX_SHADER = /* glsl */ `
     vec4 worldPos = modelMatrix * vec4(displaced, 1.0);
     vWorldXY = worldPos.xy;
     vNormal = n;
+    vNoiseUv = position.xy / uNoiseScale;
     gl_Position = projectionMatrix * viewMatrix * worldPos;
   }
 `;
@@ -41,20 +46,30 @@ const FRAGMENT_SHADER = /* glsl */ `
   uniform vec3 uLightDir;
   uniform vec3 uLightColor;
   uniform vec3 uAmbient;
+  uniform sampler2D uNoise;
 
   varying vec2 vWorldXY;
   varying vec3 vNormal;
+  varying vec2 vNoiseUv;
 
   void main() {
-    vec3 n = normalize(vNormal);
-    float diff = max(dot(n, normalize(uLightDir)), 0.0);
+    float noise = texture2D(uNoise, vNoiseUv).r;
+    vec3 perturbed = normalize(normalize(vNormal) + vec3((noise - 0.5) * 0.1, (noise - 0.5) * 0.1, 0.0));
+    float diff = max(dot(perturbed, normalize(uLightDir)), 0.0);
     vec3 lit = diff * uLightColor + uAmbient;
-    vec3 base = vec3(0.76, 0.66, 0.48);
+    vec3 base = vec3(0.76, 0.66, 0.48) * mix(0.85, 1.15, noise);
     gl_FragColor = vec4(base * lit, 1.0);
   }
 `;
 
-export function createSandMesh(nx: number, ny: number, tableW: number, tableH: number): SandMeshHandle {
+export function createSandMesh(
+  nx: number,
+  ny: number,
+  tableW: number,
+  tableH: number,
+  noiseTexture?: THREE.DataTexture,
+  noiseScaleMm = 5.0,
+): SandMeshHandle {
   const geo = new THREE.PlaneGeometry(tableW, tableH, nx - 1, ny - 1);
   geo.translate(tableW / 2, tableH / 2, 0);
 
@@ -66,6 +81,8 @@ export function createSandMesh(nx: number, ny: number, tableW: number, tableH: n
   texture.minFilter = THREE.LinearFilter;
   texture.needsUpdate = true;
 
+  const noise = noiseTexture ?? createNoiseTexture();
+
   const material = new THREE.ShaderMaterial({
     uniforms: {
       uHeightmap: { value: texture },
@@ -74,6 +91,8 @@ export function createSandMesh(nx: number, ny: number, tableW: number, tableH: n
       uLightDir: { value: new THREE.Vector3(0, 0, 1) },
       uLightColor: { value: new THREE.Color(1, 1, 1) },
       uAmbient: { value: new THREE.Color(0.2, 0.2, 0.2) },
+      uNoise: { value: noise },
+      uNoiseScale: { value: noiseScaleMm },
     },
     vertexShader: VERTEX_SHADER,
     fragmentShader: FRAGMENT_SHADER,
@@ -81,7 +100,7 @@ export function createSandMesh(nx: number, ny: number, tableW: number, tableH: n
 
   const mesh = new THREE.Mesh(geo, material);
 
-  return { mesh, texture, material, nx, ny };
+  return { mesh, texture, noiseTexture: noise, material, nx, ny };
 }
 
 export function updateSandMesh(handle: SandMeshHandle, heightmap: Float32Array): void {

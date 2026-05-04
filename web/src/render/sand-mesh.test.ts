@@ -59,6 +59,57 @@ describe('createSandMesh', () => {
     expect(handle.material.vertexShader).toContain('texture2D');
     expect(handle.material.fragmentShader).toContain('vec3(0.76, 0.66, 0.48)');
   });
+
+  it('exposes uNoise and uNoiseScale uniforms with a default scale of ~5 mm', () => {
+    const handle = createSandMesh(4, 4, 100, 100);
+    const u = handle.material.uniforms;
+    expect(u.uNoise).toBeDefined();
+    expect(u.uNoise.value).toBeInstanceOf(THREE.DataTexture);
+    expect(u.uNoise.value).toBe(handle.noiseTexture);
+    expect(u.uNoiseScale).toBeDefined();
+    expect(u.uNoiseScale.value).toBeCloseTo(5.0);
+  });
+
+  it('honours an explicit noiseScaleMm argument', () => {
+    const handle = createSandMesh(4, 4, 100, 100, undefined, 12.5);
+    expect(handle.material.uniforms.uNoiseScale.value).toBeCloseTo(12.5);
+  });
+
+  it('uses the supplied noise texture when one is provided', () => {
+    const tex = new THREE.DataTexture(
+      new Uint8Array(4),
+      2,
+      2,
+      THREE.RedFormat,
+      THREE.UnsignedByteType,
+    );
+    const handle = createSandMesh(4, 4, 100, 100, tex);
+    expect(handle.material.uniforms.uNoise.value).toBe(tex);
+    expect(handle.noiseTexture).toBe(tex);
+  });
+
+  it('vertex shader derives the noise UV from object-space position (world-anchored grain)', () => {
+    const handle = createSandMesh(3, 3, 10, 10);
+    expect(handle.material.vertexShader).toContain('uNoiseScale');
+    expect(handle.material.vertexShader).toMatch(/position\.xy\s*\/\s*uNoiseScale/);
+  });
+
+  it('fragment shader samples uNoise and modulates the base colour with mix(0.85, 1.15, noise)', () => {
+    const handle = createSandMesh(3, 3, 10, 10);
+    expect(handle.material.fragmentShader).toContain('uNoise');
+    expect(handle.material.fragmentShader).toContain('texture2D(uNoise');
+    expect(handle.material.fragmentShader).toContain('mix(0.85, 1.15, noise)');
+  });
+
+  it('fragment shader perturbs the surface normal before the diffuse term', () => {
+    const handle = createSandMesh(3, 3, 10, 10);
+    const src = handle.material.fragmentShader;
+    const perturbIdx = src.indexOf('perturbed');
+    const diffIdx = src.indexOf('max(dot(');
+    expect(perturbIdx).toBeGreaterThan(-1);
+    expect(diffIdx).toBeGreaterThan(perturbIdx);
+    expect(src).toContain('(noise - 0.5) * 0.1');
+  });
 });
 
 describe('updateSandMesh', () => {
