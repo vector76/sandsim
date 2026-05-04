@@ -84,7 +84,9 @@ self.onmessage = (event: MessageEvent<MainMessage>) => {
   const msg = event.data;
   switch (msg.type) {
     case 'config': {
-      const c = msg.config as any;
+      // 'config' resets the worker to a no-gcode-loaded state; main thread must re-issue 'load' to resume.
+      const c = msg.config;
+      sim = null;
       sim = new WasmSim(
         c.table_width_mm,
         c.table_height_mm,
@@ -101,10 +103,9 @@ self.onmessage = (event: MessageEvent<MainMessage>) => {
       const ny = sim.ny();
       bufA = new ArrayBuffer(nx * ny * 4);
       bufB = new ArrayBuffer(nx * ny * 4);
-      running = true;
+      running = false;
       simTime = 0;
       lastTime = null;
-      scheduleTick();
       break;
     }
     case 'load': {
