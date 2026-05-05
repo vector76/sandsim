@@ -6,7 +6,7 @@ Upload a gcode toolpath, watch the ball trace it in real time on a 3D rendering 
 
 ## Status
 
-Early implementation. Rust/WASM gcode parser is complete. Web frontend scaffolding in place.
+v1 complete. Volume-conserving segmented carve + repose, vertex-displacement shader with world-space noise, user-controlled lighting, reset/append load modes, and a built-in fixture picker (square / spiral / rose / homing / wall_clamp / unsupported / v1_sandify). Deployed automatically to GitHub Pages on push to `main`.
 
 ## Building
 
@@ -26,6 +26,10 @@ For local development:
 npm run build:wasm   # once, or after changing Rust code
 npm run dev          # Vite dev server with HMR
 ```
+
+## Local CI mirror
+
+`scripts/ci-local.sh` runs the same steps as `.github/workflows/ci.yml` + `pages.yml` (rust tests, wasm build, web tests, vite build, static-serve smoke check). Run it before pushing to predict CI/CD success.
 
 ## Goals
 

@@ -152,10 +152,12 @@ The visual end-state of phase B is: drop `square.gcode`, watch a sphere drag alo
 
 ## Acceptance criteria
 
-- [ ] All Rust tests in `cargo test -p sandsim-core` green, including the new heightmap, carve, and sim tests.
-- [ ] Loading `tests/fixtures/square.gcode` in the browser shows the ball tracing a square in real time, leaving four visible grooves.
-- [ ] Loading `tests/fixtures/homing.gcode` shows the homing L-streaks carved into the sand.
-- [ ] Sim runs at the gcode feedrate (real-time): a 100 mm move at F1000 takes 6 seconds.
-- [ ] Render thread stays at 60 fps during simulation. Camera controls remain responsive.
-- [ ] No memory leaks: loading multiple files in sequence does not grow the heightmap buffer count beyond two.
-- [ ] Static build works on a vanilla static host (re-verify GitHub Pages compatibility).
+Phase complete. `carve_naive` has since been replaced by the segmented kernel + repose in phase C; the rest of the pipeline (worker, double-buffer protocol, ball/sand meshes) is unchanged.
+
+- [x] All Rust tests in `cargo test -p sandsim-core` green, including the new heightmap, carve, and sim tests.
+- [x] Loading `tests/fixtures/square.gcode` in the browser shows the ball tracing a square in real time, leaving four visible grooves.
+- [x] Loading `tests/fixtures/homing.gcode` shows the homing L-streaks carved into the sand.
+- [x] Sim runs at the gcode feedrate (real-time): a 100 mm move at F1000 takes 6 seconds.
+- [x] Render thread stays at 60 fps during simulation. Camera controls remain responsive.
+- [x] No memory leaks: loading multiple files in sequence does not grow the heightmap buffer count beyond two.
+- [x] Static build works on a vanilla static host (re-verify GitHub Pages compatibility).

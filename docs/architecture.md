@@ -23,9 +23,11 @@ The application is a 100% static web page. **GitHub Pages compatible** — no se
 sandsim/
   Cargo.toml                 # workspace manifest
   crates/
-    sandsim-core/            # pure Rust: parser, heightmap, carve, repose
-      src/
-      tests/
+    sandsim-core/            # pure Rust: parser, heightmap, carve, repose, generators
+      src/                   # parser.rs, heightmap.rs, carve.rs, repose.rs,
+                             # sim.rs, generators.rs
+      tests/                 # parser, sim, generator, end-to-end, committed-fixture tests
+      examples/              # generate_fixtures.rs (regenerates spiral/rose .gcode)
     sandsim-wasm/            # thin wasm-bindgen wrapper around sandsim-core
       src/
   web/
@@ -36,15 +38,25 @@ sandsim/
       main.ts                # bootstrap: scene, camera, controls, file input, light controls
       worker.ts              # owns the wasm sim, runs the wall-clock-paced loop
       sim-protocol.ts        # message types between worker and main
+      types.ts               # SimConfig + parser config shared between main and worker
       render/
-        sand-mesh.ts         # heightmap → BufferGeometry, displacement shader
+        scene.ts             # three.js scene + OrbitControls
+        sand-mesh.ts         # static grid + R32F DataTexture + displacement shader
         ball.ts
-        lighting.ts
-        camera.ts
+        lighting.ts          # directional + ambient with azimuth/altitude/balance
+        noise.ts             # procedural world-space noise texture
+        toolpath.ts          # phase-A polyline builder; not wired into the shipped UI
       ui/
-        controls.ts          # light azimuth/altitude/ambient sliders, file drop, warnings panel
+        controls.ts          # sim parameter inputs + lighting sliders
+        file-drop.ts         # file input, drag-drop, fixture picker, reset/append mode
+        warnings.ts          # grouped warnings panel
   tests/
     fixtures/                # *.gcode test inputs (also consumed by sandsim-core tests)
+  scripts/
+    ci-local.sh              # mirror of GitHub Actions ci.yml + pages.yml
+  .github/workflows/
+    ci.yml                   # cargo + vitest + vite build on push/PR
+    pages.yml                # GitHub Pages deploy
   docs/
 ```
 
@@ -62,7 +74,7 @@ The main thread does:
 
 - File input handling.
 - three.js scene, camera controls (orbit / zoom / pan), lighting controls.
-- Receives heightmap snapshots from the worker and updates the sand mesh's displacement texture (or BufferGeometry) each frame.
+- Receives heightmap snapshots from the worker and uploads them into the sand mesh's `R32F` displacement texture each frame.
 - Rendering at 60 fps via `requestAnimationFrame`.
 
 The worker does:
@@ -171,10 +183,10 @@ The Rust core is the bulk of the logic and the bulk of the test coverage. Per th
 
 ## v1 build sequence
 
-Implementation is organized into three phases, each producing a visible milestone. Each phase has its own document specifying scope, deliverables, and acceptance criteria.
+v1 is shipped. Implementation was organized into three phases, each producing a visible milestone. Each phase has its own document with scope, deliverables, and an acceptance walk-through.
 
-- **Phase A — toolpath viewer** (`phase-a-toolpath-viewer.md`). First visual moment. Vite + three.js + minimal wasm-bindgen wrapper exposing the parser. Drop a gcode file, see the toolpath as a 3D polyline above a flat table. Validates the web build pipeline and GitHub Pages compatibility before deeper work depends on it.
-- **Phase B — minimum viable simulation** (`phase-b-minimum-viable-sim.md`). First "it's alive" moment. Heightmap, naive (non-volume-conserving) carve, sim driver, web worker, double-buffered transferable buffers, CPU-side mesh updates. Drop a gcode file, watch the ball trace it in real time and carve grooves into the sand. Piles and cross-pattern interaction are deliberately deferred — phase B exists to wire the pipeline end-to-end so phase C can swap in real kernels behind a stable API.
-- **Phase C — hardening** (`phase-c-hardening.md`). All v1 success criteria from `application-purpose.md`. Replaces phase B's placeholder kernels with the full segmented carve & repose from `sand-model.md`, switches sand rendering to a vertex-displacement shader, adds the world-space noise texture and user-controllable lighting, ships the warnings panel, the reset/append mode UI, the simulation parameter inputs, and the spiral/rose generators.
+- **Phase A — toolpath viewer** (`phase-a-toolpath-viewer.md`). First visual moment. Vite + three.js + minimal wasm-bindgen wrapper exposing the parser. Drop a gcode file, see the toolpath as a 3D polyline above a flat table. Validated the web build pipeline and GitHub Pages compatibility before deeper work depended on it. The polyline overlay was retired once the simulation landed.
+- **Phase B — minimum viable simulation** (`phase-b-minimum-viable-sim.md`). First "it's alive" moment. Heightmap, naive (non-volume-conserving) carve, sim driver, web worker, double-buffered transferable buffers, CPU-side mesh updates. The pipeline (worker, double-buffer protocol, ball/sand meshes) survives to v1; the naive kernel was replaced in phase C.
+- **Phase C — hardening** (`phase-c-hardening.md`). All v1 success criteria from `application-purpose.md`. Replaced phase B's placeholder kernels with the full segmented carve & repose from `sand-model.md`, switched sand rendering to a vertex-displacement shader, added the world-space noise texture and user-controllable lighting, shipped the warnings panel, the reset/append mode UI, the simulation parameter inputs, and the spiral/rose generators.
 
-Already complete (committed before phase A): Cargo workspace skeleton and the gcode parser with full test coverage (`crates/sandsim-core/src/parser.rs`, `crates/sandsim-core/tests/parser_tests.rs`).
+After phase C: configs were reframed into the gcode coordinate frame (the user-facing `gcode_width_mm` / `gcode_height_mm`; the heightmap is sized to gcode + 2·r internally), defaults were retuned (`r=8`, `h0=1`, `n_segments=32`), a built-in fixture picker was added to the file-drop UI, and GitHub Pages auto-deploy + a local CI mirror script (`scripts/ci-local.sh`) were wired up.

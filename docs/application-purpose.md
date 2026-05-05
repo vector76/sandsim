@@ -25,7 +25,7 @@ People who design sand-table toolpaths (Sisyphus-style tables and similar) and w
 - **Playback:** real-time at gcode feedrate. Ball rendered on the surface during playback.
 - **Visualization:** orbit camera with zoom and pan. World-space noise texture on the sand surface for depth cues. Single directional light with user-controllable azimuth / altitude, plus ambient, with a slider for ambient/directional balance.
 - **File loading:** upload a `.gcode` file. On a subsequent upload, user can choose to reset the sand or play the new file on top of the existing pattern (as if the gcode were concatenated).
-- **Wall behavior:** ball center is clamped to stay at least `r` from each wall; out-of-bounds gcode generates a warning.
+- **Wall behavior:** gcode positions are clamped to the configured reachable region `[0, gcode_W] × [0, gcode_H]`; out-of-bounds gcode generates a warning. Internally this corresponds to keeping the ball center at least `r` from each table-frame wall.
 
 ## Explicitly deferred to later
 

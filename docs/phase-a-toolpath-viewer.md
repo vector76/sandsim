@@ -93,12 +93,14 @@ Pure Rust changes (just adding the wasm wrapper) need no new Rust tests — the 
 
 ## Acceptance criteria
 
-- [ ] `cargo build` and `cargo test` still green (no regression in the parser).
-- [ ] `cd web && npm run dev` opens a page where:
+Phase complete; superseded by phase B's simulation pipeline. The toolpath polyline overlay is not retained in the shipped UI.
+
+- [x] `cargo build` and `cargo test` still green (no regression in the parser).
+- [x] `cd web && npm run dev` opens a page where:
   - dropping `tests/fixtures/square.gcode` shows a square outline above the table;
   - dropping `tests/fixtures/homing.gcode` shows the homing L-streaks;
   - dropping `tests/fixtures/wall_clamp.gcode` shows the clamped path AND the warnings panel populates;
   - dropping `tests/fixtures/unsupported.gcode` shows the two valid moves AND the warnings panel populates.
-- [ ] Orbit camera works (drag to rotate, scroll to zoom, right-drag to pan).
-- [ ] `cd web && npm run build` produces `web/dist/` that, when served from a plain static HTTP server with no special headers, loads and functions correctly.
-- [ ] The Cargo workspace and the web app are fully integrated: a single command (or short documented sequence) builds both.
+- [x] Orbit camera works (drag to rotate, scroll to zoom, right-drag to pan).
+- [x] `cd web && npm run build` produces `web/dist/` that, when served from a plain static HTTP server with no special headers, loads and functions correctly.
+- [x] The Cargo workspace and the web app are fully integrated: a single command (or short documented sequence) builds both.

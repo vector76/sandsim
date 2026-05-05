@@ -6,8 +6,8 @@ This document defines the gcode dialect that `sandsim` v1 understands. The parse
 
 Two distinct 2D coordinate frames are used, and they must not be confused:
 
-- **Gcode frame.** What the user writes and what the parser produces. Origin `(0, 0)` is the lower-left of the *reachable* region — i.e., the closest the ball center can get to the lower-left corner of the table. Reachable extent is `[0, W - 2r] × [0, H - 2r]`, where `W` and `H` are the physical table dimensions and `r` is the ball radius. Units: mm.
-- **Table (physics) frame.** What the simulation core uses internally. Origin `(0, 0)` is the lower-left corner of the physical table. The heightmap is indexed in this frame.
+- **Gcode frame.** What the user writes and what the parser produces. Origin `(0, 0)` is the lower-left of the *reachable* region — i.e., the closest the ball center can get to the lower-left corner of the table. Reachable extent is `[0, W] × [0, H]`, where `W` and `H` are the configured `gcode_width_mm` / `gcode_height_mm`. Units: mm.
+- **Table (physics) frame.** What the simulation core uses internally. Origin `(0, 0)` is the lower-left corner of the physical table. The heightmap is indexed in this frame, and the physical table is sized to `(W + 2r) × (H + 2r)` so that the entire reachable region is covered with a `r`-wide margin on every side.
 
 The translation is `table = gcode + (r, r)`. It happens once, at the boundary between parser output and the simulation core. Every coordinate inside this document is in the **gcode frame** unless explicitly stated otherwise.
 
@@ -60,9 +60,11 @@ Each warning includes the source line number and the original line text. Warning
 Before executing a move, the parser/interpreter clamps the target position (in the gcode frame) to the reachable region:
 
 ```
-x_legal = clamp(x, 0, W - 2r)
-y_legal = clamp(y, 0, H - 2r)
+x_legal = clamp(x, 0, W)
+y_legal = clamp(y, 0, H)
 ```
+
+(`W` and `H` here are `gcode_width_mm` / `gcode_height_mm` — the reachable extent in the gcode frame.)
 
 If the original `(x, y)` differed from `(x_legal, y_legal)` by more than a small epsilon, a warning is emitted: `"line N: position (X, Y) clamped to (X_legal, Y_legal)"` (gcode-frame coordinates). The simulation continues from the clamped position.
 
@@ -91,6 +93,7 @@ The `tests/fixtures/` directory will contain hand-crafted and generator-produced
 - `wall_clamp.gcode` — intentionally commands positions outside the reachable region to verify clamping and warnings.
 - `homing.gcode` — exercises `G28` and `$H`, including a `G28` after a non-origin position to verify the L-shaped streak.
 - `unsupported.gcode` — contains `G2`, `M3`, comments, line numbers, etc., to exercise the warning path.
+- `v1_sandify.gcode` — large real-world Sandify-generated pattern; serves as a soak/perf fixture.
 
 Generators for `spiral.gcode` and `rose.gcode` will live in the core crate as small functions exposed for testing (and possibly later as a CLI utility).
 
